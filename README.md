@@ -5,9 +5,9 @@ Haskell bindings to the Windows API, generated from Microsoft's
 Rust's [windows-rs](https://github.com/microsoft/windows-rs): a machine-readable
 description of the API surface goes in, and Haskell bindings come out.
 
-> **Status:** early development. Nothing is usable yet. The repository has the
-> design and a script that fetches the metadata. The components below are
-> planned, not implemented.
+> **Status:** early development. The metadata reader (`winmd`) works and is
+> tested against `Windows.Win32.winmd`. The generator and runtime are not
+> written yet, so there are no bindings to use.
 
 ## How it works
 
@@ -23,8 +23,8 @@ windows-hs has three parts:
 | Package | Role | windows-rs equivalent |
 |---|---|---|
 | `winmd` | Reads `.winmd` files: PE container, metadata tables, signatures, custom attributes | `windows-metadata` |
-| `windows-bindgen` | Generates Haskell modules for the APIs you select | `windows-bindgen` |
-| `windows-core` | Small runtime that generated code depends on: function loading, `HRESULT`, strings, COM plumbing | `windows-core`, `windows-link` |
+| `windows-bindgen` (planned) | Generates Haskell modules for the APIs you select | `windows-bindgen` |
+| `windows-core` (planned) | Small runtime that generated code depends on: function loading, `HRESULT`, strings, COM plumbing | `windows-core`, `windows-link` |
 
 ### Design choices
 
@@ -60,3 +60,31 @@ in this repository. To download the pinned version
 ```
 
 This writes `metadata/Windows.Win32.winmd`. It needs `curl` and `unzip`.
+
+## Looking at the metadata
+
+`winmd-dump` prints what the metadata says about a namespace or a type:
+
+```console
+$ cabal run -v0 winmd-dump -- metadata/Windows.Win32.winmd Windows.Win32.Foundation RECT
+[Documentation("https://learn.microsoft.com/windows/win32/api/windef/ns-windef-rect")]
+struct Windows.Win32.Foundation.RECT : System.ValueType
+  int left
+  int top
+  int right
+  int bottom
+```
+
+With only the file argument it lists every namespace and how many types it
+has. With a namespace it lists the types in it.
+
+## Building and testing
+
+```sh
+./scripts/fetch-metadata.sh
+cabal build all
+cabal test all
+```
+
+The tests read `metadata/Windows.Win32.winmd`; set `WINMD_PATH` to use a
+different file.

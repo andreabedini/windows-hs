@@ -1,0 +1,63 @@
+cabal-version:   3.4
+name:            winmd
+version:         0.1.0.0
+synopsis:        Reader for ECMA-335 metadata (.winmd) files
+description:
+  Reads Windows metadata files (@.winmd@), such as those published by
+  Microsoft's win32metadata project: the PE container, metadata tables and
+  heaps, signatures, constants and custom attributes.
+
+category:        Development, Windows
+author:          Andrea Bedini
+maintainer:      andrea@andreabedini.com
+build-type:      Simple
+tested-with:     GHC ==9.12.2
+
+common warnings
+  ghc-options:
+    -Wall -Wcompat -Widentities -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints
+    -Wmissing-deriving-strategies
+
+  default-language:   GHC2024
+  default-extensions: OverloadedStrings
+
+library
+  import:          warnings
+  hs-source-dirs:  src
+  exposed-modules:
+    WinMD
+    WinMD.Attribute
+    WinMD.Internal.Database
+    WinMD.Internal.PE
+    WinMD.Internal.Parser
+    WinMD.Signature
+    WinMD.Tables
+    WinMD.Tables.Flags
+
+  build-depends:
+    , array       >=0.5  && <0.6
+    , base        >=4.19 && <5
+    , bytestring  >=0.11 && <0.13
+    , containers  >=0.6  && <0.8
+    , text        >=2.0  && <2.2
+
+executable winmd-dump
+  import:         warnings
+  hs-source-dirs: app
+  main-is:        Dump.hs
+  build-depends:
+    , base
+    , containers
+    , text
+    , winmd
+
+test-suite winmd-test
+  import:         warnings
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Main.hs
+  build-depends:
+    , base
+    , text
+    , winmd

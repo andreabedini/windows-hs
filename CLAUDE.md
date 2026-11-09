@@ -28,12 +28,22 @@ COM only; WinRT is out of scope.
 
 ## Layout
 
-Planned Cabal packages, one directory each, listed in `cabal.project`:
+Cabal packages, one directory each, listed in `cabal.project`:
 
 - `winmd/`: ECMA-335 reader library. No Windows-specific code. Must build and
   test on Linux.
-- `windows-bindgen/`: generator library and `windows-bindgen` executable.
-- `windows-core/`: runtime library that generated code imports.
+  - `WinMD.Internal.Parser`: bounds-checked little-endian parser.
+  - `WinMD.Internal.PE`: finds the metadata in the PE image.
+  - `WinMD.Internal.Database`: table schema, coded indexes, loading and
+    validation, raw column and heap access.
+  - `WinMD.Tables`: typed rows (`Row 'TTypeDef`, aliased `TypeDef`) and
+    accessors; `WinMD.Tables.Flags` has flag constants.
+  - `WinMD.Signature`, `WinMD.Attribute`: blob decoders.
+  - `winmd-dump` (app/Dump.hs): prints namespaces, types, or one type in a
+    C#-like form. Use it to look at metadata before writing code against it.
+- `windows-bindgen/` (planned): generator library and `windows-bindgen`
+  executable.
+- `windows-core/` (planned): runtime library that generated code imports.
 
 Update this section when a package is added or its role changes.
 
@@ -64,9 +74,17 @@ repository root.
 
 - Dependencies for `winmd`: boot packages only (`base`, `bytestring`, `text`,
   `containers`, `array`). Ask before adding anything else.
-- Metadata accessors are total over well-formed files. Validate table and heap
-  bounds once when a file is loaded, and report malformed input with an error
-  that names the table, row and column.
+- `loadDatabase` checks every heap and table reference in every row, so column
+  and heap accessors read without bounds checks. Its errors name the table,
+  row and column. Blob decoders (signatures, constants, attributes) come in an
+  `Either` form and a throwing form (`WinMDError`) whose message names the row.
+- win32metadata quirks to keep in mind: a type name can have several
+  definitions, one per architecture (`findTypeDefs`, `SupportedArchitecture`);
+  nested types have an empty namespace and are referenced by TypeRefs scoped
+  to the enclosing TypeRef (`resolveTypeRef`).
+- Tests in `winmd/test` run against the real `Windows.Win32.winmd`. Assert
+  concrete values checked against the Windows headers or docs, and keep the
+  test that decodes every signature, constant and attribute in the file.
 - Follow windows-rs (`windows-bindgen`) for questions about how metadata
   should be interpreted. Cite the ECMA-335 partition and section (e.g.
   II.22.37) in comments where the format is subtle.
