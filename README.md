@@ -8,8 +8,8 @@ description of the API surface goes in, and Haskell bindings come out.
 > **Status:** early development. The metadata reader works, and the
 > generator produces bindings for functions, constants, enums, typedefs,
 > structs and callbacks that compile and whose struct layouts match the
-> Windows headers. Generated code has not been run on Windows yet. COM
-> interfaces are opaque types without methods, and unions are opaque bytes.
+> Windows headers. The sample program runs under wine. COM interfaces are
+> opaque types without methods, and unions are opaque bytes.
 
 ## How it works
 
@@ -108,3 +108,13 @@ cabal test all
 
 The tests read `metadata/Windows.Win32.winmd`; set `WINMD_PATH` to use a
 different file.
+
+To run the sample without Windows, unpack a
+[Windows GHC binary distribution](https://downloads.haskell.org/~ghc/9.12.2/)
+and build it under wine:
+
+```sh
+scripts/wine-hello.sh path/to/ghc-9.12.2-x86_64-unknown-mingw32 --no-gui
+```
+
+Without `--no-gui` the program ends by showing a message box.

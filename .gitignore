@@ -1,3 +1,4 @@
 dist-newstyle/
 /metadata/
 cabal.project.local*
+dist-wine/

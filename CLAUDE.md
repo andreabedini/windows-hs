@@ -98,9 +98,12 @@ repository root.
 - `cabal build all`, `cabal test all`.
 - Development happens on Linux. The reader and generator are portable Haskell
   and are tested on Linux. Generated bindings and `windows-core` compile on
-  Linux, but running them needs Windows. There is no GHC Windows
-  cross-compiler here, so nothing generated has been run yet; that needs
-  Windows CI or a Windows GHC under wine.
+  Linux, but running them needs Windows.
+- `scripts/wine-hello.sh GHC_DIR [--no-gui]` builds `samples/hello` with a
+  Windows GHC binary distribution under wine and runs it. It does not work
+  inside the Claude Code sandbox: `wineserver` needs to write
+  `/tmp/.wine-<uid>`, which is read-only there. Ask the user to run it with
+  `! scripts/wine-hello.sh ...`, or to grant that path.
 - `x86_64-w64-mingw32-gcc` and `wine` are installed. Use them to check
   generated struct layouts: emit a C file of `sizeof`/`offsetof` checks against
   `windows.h`, compile it with mingw, and run it under wine.
