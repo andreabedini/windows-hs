@@ -1,0 +1,63 @@
+cabal-version:   3.4
+name:            windows-bindgen
+version:         0.1.0.0
+synopsis:        Generate Haskell bindings to the Windows API from win32metadata
+description:
+  Reads Windows metadata (@.winmd@) files and generates a Haskell module
+  with the requested functions, constants and types, and every type they
+  depend on. Generated code depends on @windows-core@.
+
+category:        Development, Windows
+author:          Andrea Bedini
+maintainer:      andrea@andreabedini.com
+build-type:      Simple
+tested-with:     GHC ==9.12.2
+
+common warnings
+  ghc-options:
+    -Wall -Wcompat -Widentities -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints
+    -Wmissing-deriving-strategies
+
+  default-language:   GHC2024
+  default-extensions: OverloadedStrings
+
+library
+  import:          warnings
+  hs-source-dirs:  src
+  exposed-modules:
+    Windows.Bindgen
+    Windows.Bindgen.Emit
+    Windows.Bindgen.Layout
+    Windows.Bindgen.Model
+    Windows.Bindgen.Names
+
+  build-depends:
+    , base        >=4.19 && <5
+    , containers  >=0.6  && <0.8
+    , text        >=2.0  && <2.2
+    , winmd       ^>=0.1
+
+executable windows-bindgen
+  import:         warnings
+  hs-source-dirs: app
+  main-is:        Main.hs
+  build-depends:
+    , base
+    , text
+    , windows-bindgen
+    , winmd
+
+test-suite windows-bindgen-test
+  import:         warnings
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Main.hs
+  build-depends:
+    , base
+    , directory
+    , filepath
+    , process
+    , text
+    , windows-bindgen
+    , winmd

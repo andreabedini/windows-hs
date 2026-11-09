@@ -1,3 +1,7 @@
-packages: winmd
+packages:
+  winmd
+  windows-core
+  windows-bindgen
+  samples/hello
 
 tests: True

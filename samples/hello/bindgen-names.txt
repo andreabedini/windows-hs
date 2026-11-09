@@ -1,0 +1,28 @@
+# Names passed to windows-bindgen to generate src/Windows/Win32.hs.
+# Regenerate with:
+#   cabal run -v0 windows-bindgen -- -n samples/hello/bindgen-names.txt \
+#     -o samples/hello/src/Windows/Win32.hs metadata/Windows.Win32.winmd
+
+# Plain functions and a struct containing a union
+Windows.Win32.System.SystemInformation.GetTickCount
+Windows.Win32.System.SystemInformation.GetSystemInfo
+
+# A struct with a fixed-size array
+Windows.Win32.System.SystemInformation.GetVersionExW
+
+# Wide strings, enums and a native typedef
+Windows.Win32.UI.WindowsAndMessaging.MessageBoxW
+
+# A struct passed by value
+Windows.Win32.UI.WindowsAndMessaging.WindowFromPoint
+
+# A callback (WNDPROC) inside a struct
+Windows.Win32.UI.WindowsAndMessaging.RegisterClassW
+
+# COM: an interface pointer and GUIDs
+Windows.Win32.System.Com.CoCreateInstance
+
+# Constants
+Windows.Win32.Foundation.MAX_PATH
+Windows.Win32.Foundation.S_OK
+Windows.Win32.Foundation.E_POINTER

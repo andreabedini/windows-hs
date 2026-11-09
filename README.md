@@ -5,9 +5,11 @@ Haskell bindings to the Windows API, generated from Microsoft's
 Rust's [windows-rs](https://github.com/microsoft/windows-rs): a machine-readable
 description of the API surface goes in, and Haskell bindings come out.
 
-> **Status:** early development. The metadata reader (`winmd`) works and is
-> tested against `Windows.Win32.winmd`. The generator and runtime are not
-> written yet, so there are no bindings to use.
+> **Status:** early development. The metadata reader works, and the
+> generator produces bindings for functions, constants, enums, typedefs,
+> structs and callbacks that compile and whose struct layouts match the
+> Windows headers. Generated code has not been run on Windows yet. COM
+> interfaces are opaque types without methods, and unions are opaque bytes.
 
 ## How it works
 
@@ -23,8 +25,8 @@ windows-hs has three parts:
 | Package | Role | windows-rs equivalent |
 |---|---|---|
 | `winmd` | Reads `.winmd` files: PE container, metadata tables, signatures, custom attributes | `windows-metadata` |
-| `windows-bindgen` (planned) | Generates Haskell modules for the APIs you select | `windows-bindgen` |
-| `windows-core` (planned) | Small runtime that generated code depends on: function loading, `HRESULT`, strings, COM plumbing | `windows-core`, `windows-link` |
+| `windows-bindgen` | Generates Haskell modules for the APIs you select | `windows-bindgen` |
+| `windows-core` | Small runtime that generated code depends on: function loading, `HRESULT`, strings, COM plumbing | `windows-core`, `windows-link` |
 
 ### Design choices
 
@@ -60,6 +62,24 @@ in this repository. To download the pinned version
 ```
 
 This writes `metadata/Windows.Win32.winmd`. It needs `curl` and `unzip`.
+
+## Generating bindings
+
+Name the functions, constants and types you need, or whole namespaces.
+`windows-bindgen` writes one module with those items and every type they
+depend on:
+
+```sh
+cabal run -v0 windows-bindgen -- -o src/Windows/Win32.hs \
+  metadata/Windows.Win32.winmd \
+  Windows.Win32.System.SystemInformation.GetTickCount \
+  Windows.Win32.UI.WindowsAndMessaging.MessageBoxW
+```
+
+Names can also be listed in a file, one per line, and passed with
+`-n FILE`. The generated module depends on `windows-core`. See
+`samples/hello` for a complete example, and `windows-bindgen --help` for the
+other options.
 
 ## Looking at the metadata
 
