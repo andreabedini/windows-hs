@@ -1,0 +1,129 @@
+name: CI
+
+# linux builds every package, runs the test suites (which read the Windows
+# metadata and compare samples/hello's bindings with a fresh generation),
+# and checks the Win32 package's API surface: generated, compiled with
+# -Werror, and its struct layouts checked against mingw-w64's headers.
+# windows runs what needs Windows: windows-core's tests and the sample
+# program. It does not need the metadata, as the sample's bindings are
+# committed.
+#
+# The metadata is downloaded from NuGet on every run, not cached or
+# uploaded: it is under the Microsoft SDK licence.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GHC_VERSION: 9.12.2
+  CABAL_VERSION: 3.18.1.0
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d # v2.12.1
+        id: setup
+        with:
+          ghc-version: ${{ env.GHC_VERSION }}
+          cabal-version: ${{ env.CABAL_VERSION }}
+
+      - name: Install mingw-w64
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gcc-mingw-w64-x86-64
+
+      - name: Fetch metadata
+        run: ./scripts/fetch-metadata.sh
+
+      - name: Plan
+        run: cabal build all --enable-tests --dry-run
+
+      - name: Restore cabal store
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: cabal-store-linux-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('dist-newstyle/cache/plan.json') }}
+          restore-keys: cabal-store-linux-ghc-${{ env.GHC_VERSION }}-
+
+      - name: Build dependencies
+        run: cabal build all --enable-tests --only-dependencies -j
+
+      - name: Save cabal store
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Build
+        run: cabal build all --enable-tests -j
+
+      - name: Test
+        run: cabal test all
+
+      - name: Check the Win32 package's API surface
+        run: scripts/check-win32-surface.sh
+
+  windows:
+    name: Windows
+    runs-on: windows-2025
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d # v2.12.1
+        id: setup
+        with:
+          ghc-version: ${{ env.GHC_VERSION }}
+          cabal-version: ${{ env.CABAL_VERSION }}
+
+      - name: Plan
+        run: cabal build windows-core hello --enable-tests --dry-run
+
+      - name: Restore cabal store
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: cabal-store-windows-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('dist-newstyle/cache/plan.json') }}
+          restore-keys: cabal-store-windows-ghc-${{ env.GHC_VERSION }}-
+
+      - name: Build dependencies
+        run: cabal build windows-core hello --enable-tests --only-dependencies -j
+
+      - name: Save cabal store
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Build
+        run: cabal build windows-core hello --enable-tests -j
+
+      - name: Test windows-core
+        run: cabal test windows-core
+
+      - name: Run the sample
+        run: cabal run exe:hello -- --no-gui
