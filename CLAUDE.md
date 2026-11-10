@@ -214,6 +214,19 @@ Tests that need the metadata take the path of `Windows.Win32.winmd` from the
   generates without skips. `scripts/check-win32-surface.sh` also compiles
   the result with `-Werror` (about a minute, over 1 GB) and checks its
   layouts with mingw; run it after changing the generator.
+- `scripts/check-win32-namespaces.sh` generates a module for each of the
+  325 namespaces (2.8M lines; all of Win32 in one module would not
+  compile), compiles each with `-O0 -Werror`, and checks layouts with
+  mingw. From scratch it takes about 40 minutes with `JOBS=3` (later runs
+  recompile only changed modules), and it needs about 4 GB for
+  the largest module (`Web.MsHtml`); `ONLY="NS ..."` checks some
+  namespaces. It fails on a compile error or a skipped item other than a
+  variadic function or a WinRT type. Layout mismatches against mingw are
+  listed but do not fail it, because mingw's headers lack many types and
+  differ from the SDK's in places (`MPEG2_FILTER` packing,
+  `DXVAHDSW_CALLBACKS`); `scripts/classify-layout-errors.awk` sorts gcc's
+  errors into mismatches and unchecked assertions. Run it after generator
+  changes that affect many types, such as COM or nested types.
 - To check generated struct layouts by hand, emit a C file of
   `sizeof`/`offsetof` checks against `windows.h`, compile it with
   `x86_64-w64-mingw32-gcc`, and run it under wine.

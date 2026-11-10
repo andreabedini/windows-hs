@@ -246,6 +246,13 @@ they all generate. `scripts/check-win32-surface.sh` also compiles them with
 `-Werror` and checks their struct layouts against the Windows headers with
 `x86_64-w64-mingw32-gcc`. Run it after changing the generator.
 
+`scripts/check-win32-namespaces.sh` does the same for all of Win32, one
+module per namespace. The first run takes about 40 minutes, and it needs up
+to 4 GB of memory for the largest namespace; set `JOBS` to compile fewer modules at once, or
+`ONLY` to a list of namespaces to check just those. Layouts that differ from
+mingw-w64's headers are listed rather than treated as failures, because
+those headers differ from the Windows SDK's in places.
+
 To run the sample without Windows, unpack a
 [Windows GHC binary distribution](https://downloads.haskell.org/~ghc/9.12.2/)
 and run it under wine:
