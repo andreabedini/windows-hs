@@ -61,8 +61,9 @@ Cabal packages, one directory each, listed in `cabal.project`:
   union members (`Member`, `getMember`, `setMember`, `zeroed`), and strings
   (`WideString`, with `OsString` and `Maybe OsString` instances, for
   parameters; `withWideBuffer`, `peekWideBuffer` and `takeWideString` for
-  strings Windows writes; depends on `os-string`). Its few static kernel32 imports are stubs that
-  throw on other systems, so the library builds, links and loads on Linux
+  strings Windows writes; depends on `os-string`). Its few static kernel32
+  imports are stubs that throw on other systems, so the library builds,
+  links and loads on Linux
   (tests, GHCi, Template Haskell such as `[osstr|...|]`); only calling
   Windows needs Windows. Its test suite covers the parts that call no
   Windows functions (`HRESULT`, `Member`, `WideString`).
@@ -161,17 +162,14 @@ repository root.
   and are tested on Linux. Generated bindings and `windows-core` compile on
   Linux, but running them needs Windows.
 - `scripts/wine-hello.sh GHC_DIR [--no-gui]` builds `samples/hello` with a
-  Windows GHC binary distribution under wine and runs it. It does not work
-  inside the Claude Code sandbox: `wineserver` needs to write
-  `/tmp/.wine-<uid>`, which is read-only there. Ask the user to run it with
-  `! scripts/wine-hello.sh ...`, or to grant that path.
+  Windows GHC binary distribution under wine and runs it.
 - `cabal test all` checks that every name in `coverage/win32/names.txt`
   generates without skips. `scripts/check-win32-surface.sh` also compiles
   the result with `-Werror` (about a minute, over 1 GB) and checks its
   layouts with mingw; run it after changing the generator.
-- `x86_64-w64-mingw32-gcc` and `wine` are installed. Use them to check
-  generated struct layouts: emit a C file of `sizeof`/`offsetof` checks against
-  `windows.h`, compile it with mingw, and run it under wine.
+- To check generated struct layouts by hand, emit a C file of
+  `sizeof`/`offsetof` checks against `windows.h`, compile it with
+  `x86_64-w64-mingw32-gcc`, and run it under wine.
 
 ## Conventions
 
@@ -191,4 +189,4 @@ repository root.
 - Follow windows-rs (`windows-bindgen`) for questions about how metadata
   should be interpreted. Cite the ECMA-335 partition and section (e.g.
   II.22.37) in comments where the format is subtle.
-- Version control is jj. Commit messages use Conventional Commits.
+- Commit messages use Conventional Commits.
