@@ -22,6 +22,8 @@ hello gui = do
   info <- alloca $ \p -> getSystemInfo p >> peek p
   putStrLn ("Page size: " ++ show info.dwPageSize)
   putStrLn ("Processors: " ++ show info.dwNumberOfProcessors)
+  -- A member of the union in SYSTEM_INFO, read like a field.
+  putStrLn ("Processor architecture: " ++ show info.anonymous.anonymous.wProcessorArchitecture)
 
   window <- windowFromPoint (POINT {x = 0, y = 0})
   putStrLn ("Window at (0, 0): " ++ show window)

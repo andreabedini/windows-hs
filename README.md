@@ -7,9 +7,10 @@ description of the API surface goes in, and Haskell bindings come out.
 
 > **Status:** early development. The metadata reader works, and the
 > generator produces bindings for functions, constants (including strings,
-> GUIDs and property keys), enums, typedefs, structs and callbacks that
-> compile and whose struct layouts match the Windows headers. The sample program runs under wine. COM interfaces are
-> opaque types without methods, and unions are opaque bytes.
+> GUIDs and property keys), enums, typedefs, structs, unions and callbacks
+> that compile and whose layouts match the Windows headers, for every
+> function Hackage's `Win32` package binds. The sample program runs under
+> wine. COM interfaces are opaque types without methods.
 
 ## How it works
 

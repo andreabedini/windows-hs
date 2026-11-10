@@ -316,13 +316,31 @@ emitType ctx members t = do
           }
     KUnion -> do
       Layout size align <- defLayout t
+      fields <- structFields t
+      let fieldNames = dedupe Set.empty [valueName (fieldName f) | (f, _, _) <- fields]
+          -- A member whose type is not emitted is left out; the bytes are
+          -- still there.
+          unionMembers =
+            [ (n, ty, off)
+            | (n, (f, off, _)) <- zip fieldNames fields
+            , Right ty <- [hsType ctx (fieldType f)]
+            ]
+          memberInstances (n, ty, off) =
+            [ ""
+            , "instance Core.Member " <> tshow n <> " " <> name <> " " <> atom ty <> " where"
+            , "  memberOffset = " <> tshow off
+            , ""
+            , "instance R.HasField " <> tshow n <> " " <> name <> " " <> atom ty <> " where"
+            , "  getField = Core.getMember @" <> tshow n
+            ]
       Right
         Decl
           { declExports = [name <> " (..)"]
           , declBody =
               T.unlines $
                 doc
-                  ++ [ "-- | A union or explicit-layout struct of " <> tshow size <> " bytes, kept as raw bytes."
+                  ++ [ "-- | A union or explicit-layout struct of " <> tshow size <> " bytes. Read a member"
+                     , "-- as a field (@u.member@); build one with 'Core.setMember' and 'Core.zeroed'."
                      , "newtype " <> name <> " = " <> name <> " (FixedArray " <> tshow size <> " Word8)"
                      , "  deriving stock (P.Eq, P.Ord, P.Show)"
                      , ""
@@ -332,6 +350,7 @@ emitType ctx members t = do
                      , "  peek p = " <> name <> " P.<$> S.peek (F.castPtr p)"
                      , "  poke p (" <> name <> " b) = S.poke (F.castPtr p) b"
                      ]
+                  ++ concatMap memberInstances unionMembers
           }
     KDelegate -> do
       invoke <- maybe (Left "delegate without an Invoke method") Right (delegateInvoke t)
@@ -760,10 +779,13 @@ render cfg decls =
       ++ [ "{-# LANGUAGE DataKinds #-}"
          , "{-# LANGUAGE DerivingStrategies #-}"
          , "{-# LANGUAGE DuplicateRecordFields #-}"
+         , "{-# LANGUAGE FlexibleInstances #-}"
          , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
+         , "{-# LANGUAGE MultiParamTypeClasses #-}"
          , "{-# LANGUAGE NoFieldSelectors #-}"
          , "{-# LANGUAGE NoImplicitPrelude #-}"
          , "{-# LANGUAGE PatternSynonyms #-}"
+         , "{-# LANGUAGE TypeApplications #-}"
          , "{-# LANGUAGE ViewPatterns #-}"
          , "{-# OPTIONS_GHC -Wno-unused-imports #-}"
          , ""
@@ -778,6 +800,7 @@ render cfg decls =
          , "import Foreign.Ptr (FunPtr, IntPtr (..), Ptr, WordPtr (..))"
          , "import Foreign.Ptr qualified as F"
          , "import Foreign.Storable qualified as S"
+         , "import GHC.Records qualified as R"
          , "import Prelude (Double, Float, IO)"
          , "import Prelude qualified as P"
          , "import System.IO.Unsafe qualified as U"

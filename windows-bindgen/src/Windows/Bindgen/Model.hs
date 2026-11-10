@@ -205,6 +205,7 @@ closeOver roots =
 defDeps :: TypeDef -> [TypeDef]
 defDeps t = case classify t of
   KStruct -> concatMap (typeDeps . fieldType) (instanceFields t)
+  KUnion -> concatMap (typeDeps . fieldType) (instanceFields t)
   KNativeTypedef -> concatMap (typeDeps . fieldType) (instanceFields t)
   KDelegate -> maybe [] (sigDeps . methodSignature) (delegateInvoke t)
   _ -> []

@@ -34,6 +34,7 @@ library
     Windows.Core.Link
     Windows.Core.Literal
     Windows.Core.Marshal
+    Windows.Core.Member
 
   build-depends:
     , base        >=4.19 && <5

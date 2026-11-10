@@ -57,10 +57,10 @@ Cabal packages, one directory each, listed in `cabal.project`:
 - `windows-core/`: runtime library that generated code imports (as
   `Windows.Core`): `resolveProc` (LoadLibraryExW/GetProcAddress with a module
   cache), struct-by-value marshalling for the x64 ABI, `FixedArray`, `GUID`,
-  and errors: `HRESULT`, the `WindowsError` exception, `lastError` and
-  `check`. Builds on Linux; only linking a program needs Windows. Its test
-  suite covers `Windows.Core.HRESULT`, which calls no Windows functions and
-  so links on Linux.
+  errors (`HRESULT`, the `WindowsError` exception, `lastError`, `check`),
+  and union members (`Member`, `getMember`, `setMember`, `zeroed`). Builds on Linux; only linking a program needs Windows. Its test
+  suite covers the modules that call no Windows functions
+  (`Windows.Core.HRESULT`, `Windows.Core.Member`), which link on Linux.
 - `samples/hello/`: a module generated from `bindgen-names.txt` and a small
   program using it. The library (bindings and `Hello`) builds everywhere; the
   executable only on Windows.
@@ -94,7 +94,11 @@ Update this section when a package is added or its role changes.
 - Reading `GetLastError` after a generated call is reliable: calls are
   `safe`, and GHC's runtime saves and restores the last error around them
   and across thread switches (`rts/Schedule.c`).
-- Unions and explicit-layout structs are opaque byte arrays for now.
+- Unions and explicit-layout structs are newtypes over their bytes. Each
+  member gets a `Core.Member` instance (its offset) and an `R.HasField`
+  instance, so it reads like a field (`info.anonymous.wProcessorArchitecture`);
+  values are built with `Core.setMember @"name" x Core.zeroed`. Member types
+  are part of the dependency closure.
 - Struct records use `DuplicateRecordFields` and `NoFieldSelectors`; users
   read fields with `OverloadedRecordDot`.
 - `samples/hello/src/Windows/Win32.hs` is a golden file. After changing the

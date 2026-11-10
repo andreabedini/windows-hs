@@ -80,7 +80,7 @@ cLayoutChecks out =
                  | classify t /= KNativeTypedef
                  ]
               ++ [ assert ("offsetof(" <> c <> ", " <> fieldName f <> ") == " <> tshow off) (c <> "." <> fieldName f)
-                 | classify t == KStruct
+                 | classify t `elem` [KStruct, KUnion]
                  , Right fields <- [structFields t]
                  , (f, off, _) <- fields
                  , not ("Anonymous" `T.isPrefixOf` fieldName f)

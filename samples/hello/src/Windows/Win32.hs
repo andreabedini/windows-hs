@@ -2,10 +2,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
@@ -110,6 +113,23 @@ module Windows.Win32
   , pattern MB_MISCMASK
   , OSVERSIONINFOW (..)
   , POINT (..)
+  , PROCESSOR_ARCHITECTURE (..)
+  , pattern PROCESSOR_ARCHITECTURE_INTEL
+  , pattern PROCESSOR_ARCHITECTURE_MIPS
+  , pattern PROCESSOR_ARCHITECTURE_ALPHA
+  , pattern PROCESSOR_ARCHITECTURE_PPC
+  , pattern PROCESSOR_ARCHITECTURE_SHX
+  , pattern PROCESSOR_ARCHITECTURE_ARM
+  , pattern PROCESSOR_ARCHITECTURE_IA64
+  , pattern PROCESSOR_ARCHITECTURE_ALPHA64
+  , pattern PROCESSOR_ARCHITECTURE_MSIL
+  , pattern PROCESSOR_ARCHITECTURE_AMD64
+  , pattern PROCESSOR_ARCHITECTURE_IA32_ON_WIN64
+  , pattern PROCESSOR_ARCHITECTURE_NEUTRAL
+  , pattern PROCESSOR_ARCHITECTURE_ARM64
+  , pattern PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64
+  , pattern PROCESSOR_ARCHITECTURE_IA32_ON_ARM64
+  , pattern PROCESSOR_ARCHITECTURE_UNKNOWN
   , PROPERTYKEY (..)
   , PSTR (..)
   , PWSTR (..)
@@ -117,6 +137,7 @@ module Windows.Win32
   , SRWLOCK (..)
   , SYSTEM_INFO (..)
   , SYSTEM_INFO_0 (..)
+  , SYSTEM_INFO_0_0 (..)
   , WNDCLASSW (..)
   , WNDCLASS_STYLES (..)
   , pattern CS_VREDRAW
@@ -170,6 +191,7 @@ import Foreign.C.Types (CBool (..))
 import Foreign.Ptr (FunPtr, IntPtr (..), Ptr, WordPtr (..))
 import Foreign.Ptr qualified as F
 import Foreign.Storable qualified as S
+import GHC.Records qualified as R
 import Prelude (Double, Float, IO)
 import Prelude qualified as P
 import System.IO.Unsafe qualified as U
@@ -309,7 +331,8 @@ newtype HWND = HWND (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
--- | A union or explicit-layout struct of 8 bytes, kept as raw bytes.
+-- | A union or explicit-layout struct of 8 bytes. Read a member
+-- as a field (@u.member@); build one with 'Core.setMember' and 'Core.zeroed'.
 newtype INIT_ONCE = INIT_ONCE (FixedArray 8 Word8)
   deriving stock (P.Eq, P.Ord, P.Show)
 
@@ -318,6 +341,12 @@ instance S.Storable INIT_ONCE where
   alignment _ = 8
   peek p = INIT_ONCE P.<$> S.peek (F.castPtr p)
   poke p (INIT_ONCE b) = S.poke (F.castPtr p) b
+
+instance Core.Member "ptr" INIT_ONCE (Ptr ()) where
+  memberOffset = 0
+
+instance R.HasField "ptr" INIT_ONCE (Ptr ()) where
+  getField = Core.getMember @"ptr"
 
 -- | <https://learn.microsoft.com/windows/win32/api/unknwn/nn-unknwn-iunknown>
 data IUnknown
@@ -518,6 +547,58 @@ instance S.Storable POINT where
   peek p = POINT P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 4
   poke p (POINT f0 f1) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 4 f1
 
+newtype PROCESSOR_ARCHITECTURE = PROCESSOR_ARCHITECTURE Word16
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+pattern PROCESSOR_ARCHITECTURE_INTEL :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_INTEL = PROCESSOR_ARCHITECTURE 0
+
+pattern PROCESSOR_ARCHITECTURE_MIPS :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_MIPS = PROCESSOR_ARCHITECTURE 1
+
+pattern PROCESSOR_ARCHITECTURE_ALPHA :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_ALPHA = PROCESSOR_ARCHITECTURE 2
+
+pattern PROCESSOR_ARCHITECTURE_PPC :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_PPC = PROCESSOR_ARCHITECTURE 3
+
+pattern PROCESSOR_ARCHITECTURE_SHX :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_SHX = PROCESSOR_ARCHITECTURE 4
+
+pattern PROCESSOR_ARCHITECTURE_ARM :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_ARM = PROCESSOR_ARCHITECTURE 5
+
+pattern PROCESSOR_ARCHITECTURE_IA64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_IA64 = PROCESSOR_ARCHITECTURE 6
+
+pattern PROCESSOR_ARCHITECTURE_ALPHA64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_ALPHA64 = PROCESSOR_ARCHITECTURE 7
+
+pattern PROCESSOR_ARCHITECTURE_MSIL :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_MSIL = PROCESSOR_ARCHITECTURE 8
+
+pattern PROCESSOR_ARCHITECTURE_AMD64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_AMD64 = PROCESSOR_ARCHITECTURE 9
+
+pattern PROCESSOR_ARCHITECTURE_IA32_ON_WIN64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_IA32_ON_WIN64 = PROCESSOR_ARCHITECTURE 10
+
+pattern PROCESSOR_ARCHITECTURE_NEUTRAL :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_NEUTRAL = PROCESSOR_ARCHITECTURE 11
+
+pattern PROCESSOR_ARCHITECTURE_ARM64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_ARM64 = PROCESSOR_ARCHITECTURE 12
+
+pattern PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64 = PROCESSOR_ARCHITECTURE 13
+
+pattern PROCESSOR_ARCHITECTURE_IA32_ON_ARM64 :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_IA32_ON_ARM64 = PROCESSOR_ARCHITECTURE 14
+
+pattern PROCESSOR_ARCHITECTURE_UNKNOWN :: PROCESSOR_ARCHITECTURE
+pattern PROCESSOR_ARCHITECTURE_UNKNOWN = PROCESSOR_ARCHITECTURE 65535
+
 -- | <https://learn.microsoft.com/windows/win32/api/wtypes/ns-wtypes-propertykey>
 data PROPERTYKEY = PROPERTYKEY
   { fmtid :: !GUID
@@ -583,7 +664,8 @@ instance S.Storable SYSTEM_INFO where
   peek p = SYSTEM_INFO P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 4 P.<*> S.peekByteOff p 8 P.<*> S.peekByteOff p 16 P.<*> S.peekByteOff p 24 P.<*> S.peekByteOff p 32 P.<*> S.peekByteOff p 36 P.<*> S.peekByteOff p 40 P.<*> S.peekByteOff p 44 P.<*> S.peekByteOff p 46
   poke p (SYSTEM_INFO f0 f1 f2 f3 f4 f5 f6 f7 f8 f9) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 4 f1 P.>> S.pokeByteOff p 8 f2 P.>> S.pokeByteOff p 16 f3 P.>> S.pokeByteOff p 24 f4 P.>> S.pokeByteOff p 32 f5 P.>> S.pokeByteOff p 36 f6 P.>> S.pokeByteOff p 40 f7 P.>> S.pokeByteOff p 44 f8 P.>> S.pokeByteOff p 46 f9
 
--- | A union or explicit-layout struct of 4 bytes, kept as raw bytes.
+-- | A union or explicit-layout struct of 4 bytes. Read a member
+-- as a field (@u.member@); build one with 'Core.setMember' and 'Core.zeroed'.
 newtype SYSTEM_INFO_0 = SYSTEM_INFO_0 (FixedArray 4 Word8)
   deriving stock (P.Eq, P.Ord, P.Show)
 
@@ -592,6 +674,30 @@ instance S.Storable SYSTEM_INFO_0 where
   alignment _ = 4
   peek p = SYSTEM_INFO_0 P.<$> S.peek (F.castPtr p)
   poke p (SYSTEM_INFO_0 b) = S.poke (F.castPtr p) b
+
+instance Core.Member "dwOemId" SYSTEM_INFO_0 Word32 where
+  memberOffset = 0
+
+instance R.HasField "dwOemId" SYSTEM_INFO_0 Word32 where
+  getField = Core.getMember @"dwOemId"
+
+instance Core.Member "anonymous" SYSTEM_INFO_0 SYSTEM_INFO_0_0 where
+  memberOffset = 0
+
+instance R.HasField "anonymous" SYSTEM_INFO_0 SYSTEM_INFO_0_0 where
+  getField = Core.getMember @"anonymous"
+
+data SYSTEM_INFO_0_0 = SYSTEM_INFO_0_0
+  { wProcessorArchitecture :: !PROCESSOR_ARCHITECTURE
+  , wReserved :: !Word16
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable SYSTEM_INFO_0_0 where
+  sizeOf _ = 4
+  alignment _ = 2
+  peek p = SYSTEM_INFO_0_0 P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 2
+  poke p (SYSTEM_INFO_0_0 f0 f1) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 2 f1
 
 -- | <https://learn.microsoft.com/windows/win32/api/winuser/ns-winuser-wndclassw>
 data WNDCLASSW = WNDCLASSW

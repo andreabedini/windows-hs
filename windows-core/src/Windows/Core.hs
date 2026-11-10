@@ -7,6 +7,7 @@ module Windows.Core
   , module Windows.Core.Link
   , module Windows.Core.Literal
   , module Windows.Core.Marshal
+  , module Windows.Core.Member
   ) where
 
 import Windows.Core.Error
@@ -15,3 +16,4 @@ import Windows.Core.GUID
 import Windows.Core.Link
 import Windows.Core.Literal
 import Windows.Core.Marshal
+import Windows.Core.Member
