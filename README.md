@@ -76,10 +76,46 @@ cabal run -v0 windows-bindgen -- -o src/Windows/Win32.hs \
   Windows.Win32.UI.WindowsAndMessaging.MessageBoxW
 ```
 
-Names can also be listed in a file, one per line, and passed with
-`-n FILE`. The generated module depends on `windows-core`. See
-`samples/hello` for a complete example, and `windows-bindgen --help` for the
-other options.
+The generated module depends on `windows-core`. See `samples/hello` for a
+complete example, and `windows-bindgen --help` for the other options.
+
+### Naming what to generate
+
+Each name is a win32metadata namespace followed by the item's name:
+
+| To generate | Name |
+|---|---|
+| a function | `Windows.Win32.System.SystemInformation.GetTickCount` |
+| a constant | `Windows.Win32.Foundation.MAX_PATH` |
+| a type | `Windows.Win32.Foundation.RECT` |
+| everything in a namespace | `Windows.Win32.System.SystemInformation` |
+
+Names can be given on the command line, or listed in a file, one per line,
+and passed with `-n FILE`. In a file, `#` starts a comment.
+`samples/hello/bindgen-names.txt` is an example. A name that matches nothing
+stops the generator with `no type, function or constant named ...`.
+
+### Finding an item's namespace
+
+The tools cannot yet look up a name for you, so you need the item's full
+name. win32metadata groups the API into its own namespaces, which do not
+follow the C headers: knowing that `GetTickCount` is declared in
+`sysinfoapi.h` does not tell you that it is in
+`Windows.Win32.System.SystemInformation`. Two ways to find it:
+
+- **The windows-rs documentation.** Search for the item at
+  [microsoft.github.io/windows-docs-rs](https://microsoft.github.io/windows-docs-rs/).
+  windows-rs is generated from the same metadata, so its path, for example
+  `windows::Win32::System::SystemInformation::GetTickCount`, is the name to
+  use with `::` replaced by `.`.
+- **`winmd-dump`.** With only the file it lists every namespace, and
+  `winmd-dump FILE NAMESPACE Apis` shows the functions and constants in one
+  namespace (see [Looking at the metadata](#looking-at-the-metadata)). It
+  cannot search across namespaces, so this works best when you can guess the
+  namespace.
+
+A lookup by short name (`windows-bindgen ... GetTickCount`, or
+`winmd-dump --find GetTickCount`) is planned but not written yet.
 
 ## Looking at the metadata
 
