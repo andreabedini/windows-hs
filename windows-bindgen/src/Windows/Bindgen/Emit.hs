@@ -10,7 +10,8 @@
 -- * a union or explicit-layout struct: a newtype over its bytes;
 -- * a delegate: a 'Foreign.Ptr.FunPtr' type and a @mk@ wrapper function;
 -- * a COM interface: an empty data type, used behind pointers;
--- * a constant: a pattern synonym;
+-- * a constant: a pattern synonym (numbers, GUIDs, struct initializers,
+--   pointers given as integers, and strings);
 -- * a function: a binding that resolves the function on first use with
 --   'Windows.Core.resolveProc' and calls it through a @dynamic@ import.
 --
@@ -30,6 +31,8 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Read qualified as TR
+import Numeric (showHex)
 import WinMD
 import Windows.Bindgen.Layout
 import Windows.Bindgen.Model
@@ -468,24 +471,39 @@ emitFunction ctx name m = do
 -- Constants
 
 emitConstant :: Ctx -> Text -> Field -> Either String Decl
-emitConstant ctx name f = do
-  c <- maybe (Left "constant has no value (only numeric constants are supported)") Right (fieldConstant f)
-  lit <- maybe (Left "unsupported constant value") Right (literal (constantValue c))
-  (ty, expr) <- case fieldType f of
-    TValueType r ->
-      resolveTarget r >>= \case
-        TargetDef d
-          | classify d `elem` [KEnum, KNativeTypedef]
-          , [inner] <- instanceFields d
-          , isNumeric (fieldType inner) -> do
-              n <- typeName ctx d
-              Right (n, n <> " " <> lit)
-        _ -> Left ("constants of type " ++ T.unpack (renderType (fieldType f)) ++ " are not supported")
-    t
-      | isNumeric t -> do
-          hs <- hsType ctx t
-          Right (hs, lit)
-      | otherwise -> Left ("constants of type " ++ T.unpack (renderType t) ++ " are not supported")
+emitConstant ctx name f = case (stringConstantType f, constantValue <$> fieldConstant f) of
+  (Just tyName, Just (VString s)) -> emitString ctx name f tyName s
+  _ -> do
+    ty <- hsType ctx (fieldType f)
+    lit <- constantLit ctx f
+    let expr = litExpr lit
+        pat = litPat lit
+    Right
+      Decl
+        { declExports = ["pattern " <> name]
+        , declBody =
+            T.unlines $
+              docComment f
+                ++ ["pattern " <> name <> " :: " <> ty]
+                ++ if pat == expr
+                  then ["pattern " <> name <> " = " <> expr]
+                  else
+                    [ "pattern " <> name <> " <- " <> pat
+                    , "  where"
+                    , "    " <> name <> " = " <> expr
+                    ]
+        }
+
+-- | A string constant. The string is allocated on first use by a
+-- @NOINLINE@ value; the pattern matches that pointer, as comparing with the
+-- constant does in C.
+emitString :: Ctx -> Text -> Field -> Text -> Text -> Either String Decl
+emitString ctx name f tyName s = do
+  ty <- case [n | (t, n) <- Map.toList (ctxTypes ctx), typeDefNamespace t == "Windows.Win32.Foundation", typeDefName t == tyName] of
+    n : _ -> Right n
+    [] -> Left ("depends on Windows.Win32.Foundation." ++ T.unpack tyName ++ ", which is not emitted")
+  let var = "str'" <> name
+      helper = if tyName == "PSTR" then "Core.ansiLiteral" else "Core.wideLiteral"
   Right
     Decl
       { declExports = ["pattern " <> name]
@@ -493,9 +511,183 @@ emitConstant ctx name f = do
           T.unlines $
             docComment f
               ++ [ "pattern " <> name <> " :: " <> ty
-                 , "pattern " <> name <> " = " <> expr
+                 , "pattern " <> name <> " <- ((P.== " <> var <> ") -> P.True)"
+                 , "  where"
+                 , "    " <> name <> " = " <> var
+                 , ""
+                 , var <> " :: " <> ty
+                 , var <> " = " <> ty <> " (" <> helper <> " " <> T.pack (show (T.unpack s)) <> ")"
+                 , "{-# NOINLINE " <> var <> " #-}"
                  ]
       }
+
+-- | A constant value, built from Haskell literals so that it can be both
+-- an expression and a pattern.
+data Lit
+  = -- | A numeric literal.
+    LNum Text
+  | -- | A pointer given as an integer, such as @HKEY_LOCAL_MACHINE@.
+    LPtr Text
+  | -- | A constructor applied to its fields.
+    LCon Text [Lit]
+  | LArr [Lit]
+
+litExpr :: Lit -> Text
+litExpr = \case
+  LNum t -> t
+  LPtr t -> "F.intPtrToPtr " <> t
+  LCon c ls -> T.unwords (c : map (atom . litExpr) ls)
+  LArr ls -> "FixedArray [" <> T.intercalate ", " (map litExpr ls) <> "]"
+
+litPat :: Lit -> Text
+litPat = \case
+  LNum t -> t
+  LPtr t -> "(F.ptrToIntPtr -> " <> t <> ")"
+  LCon c ls -> T.unwords (c : map (atom . litPat) ls)
+  LArr ls -> "FixedArray [" <> T.intercalate ", " (map litPat ls) <> "]"
+
+-- | The value of a non-string constant. Numeric constants have a Constant
+-- row; GUIDs are given by a @Guid@ attribute; other structs (@PROPERTYKEY@,
+-- @SID_IDENTIFIER_AUTHORITY@) by a @Constant@ attribute holding a C
+-- initializer such as @{{0x1234, ...}, 4}@.
+constantLit :: Ctx -> Field -> Either String Lit
+constantLit ctx f
+  | Just c <- fieldConstant f = do
+      v <- maybe (Left "unsupported constant value") Right (literal (constantValue c))
+      scalarLit ctx (fieldType f) v
+  | Just a <- findAttribute "GuidAttribute" f =
+      maybe (Left "malformed Guid attribute") guidLit (mapM attrInteger (attrArgs a))
+  | Just Attribute {attrArgs = [AttrString (Just s)]} <- findAttribute "ConstantAttribute" f = do
+      inits <- parseInit s
+      initLit ctx (fieldType f) inits
+  | otherwise = Left "constant has no value"
+  where
+    attrInteger = \case
+      AttrValue v -> valueInteger v
+      _ -> Nothing
+
+-- | A numeric literal as a value of a numeric, pointer, enum or typedef type.
+scalarLit :: Ctx -> Type -> Text -> Either String Lit
+scalarLit ctx ty v = case ty of
+  TModified _ _ t -> scalarLit ctx t v
+  TPtr _ -> Right (LPtr v)
+  TValueType r ->
+    resolveTarget r >>= \case
+      TargetDef d
+        | classify d `elem` [KEnum, KNativeTypedef]
+        , [inner] <- instanceFields d -> do
+            n <- typeName ctx d
+            LCon n . pure <$> scalarLit ctx (fieldType inner) v
+      _ -> unsupported
+  t
+    | isNumeric t -> Right (LNum v)
+    | otherwise -> unsupported
+  where
+    unsupported = Left ("constants of type " ++ T.unpack (renderType ty) ++ " are not supported")
+
+guidLit :: [Integer] -> Either String Lit
+guidLit = \case
+  [a, b, c, d0, d1, d2, d3, d4, d5, d6, d7] ->
+    Right (LCon "GUID" [hex a, hex b, hex c, LArr (map hex [d0, d1, d2, d3, d4, d5, d6, d7])])
+  _ -> Left "a GUID needs 11 numbers"
+  where
+    hex x = LNum (T.pack ("0x" ++ showHex x ""))
+
+-- | A C initializer: a number or a braced list.
+data Init = INum Integer | IList [Init]
+
+-- | Parse the comma-separated initializers of a @Constant@ attribute.
+parseInit :: Text -> Either String [Init]
+parseInit s = case items (T.strip s) of
+  Just (xs, rest) | T.null rest -> Right xs
+  _ -> Left ("cannot parse constant " ++ show s)
+  where
+    items t = item t >>= \(x, r) -> more [x] r
+    more acc r = case T.uncons r of
+      Just (',', r') -> item (T.stripStart r') >>= \(x, r'') -> more (x : acc) r''
+      _ -> Just (reverse acc, r)
+    item t = case T.uncons t of
+      Just ('{', r) -> do
+        (xs, r') <- items (T.stripStart r)
+        case T.uncons r' of
+          Just ('}', r'') -> Just (IList xs, T.stripStart r'')
+          _ -> Nothing
+      _ -> case TR.signed TR.decimal t of
+        Right (n, r) -> Just (INum n, T.stripStart r)
+        Left _ -> Nothing
+
+-- | A whole @Constant@ attribute value as a value of the field's type. A
+-- struct's fields are listed without braces; a lone @0@ zeroes a struct or
+-- union, as @= {0}@ does in C.
+initLit :: Ctx -> Type -> [Init] -> Either String Lit
+initLit ctx ty inits = case (ty, inits) of
+  (TModified _ _ t, _) -> initLit ctx t inits
+  (TValueType r, _) ->
+    resolveTarget r >>= \case
+      TargetDef d
+        | classify d == KStruct -> structLit ctx d inits
+        | classify d == KUnion, [INum 0] <- inits -> do
+            n <- typeName ctx d
+            Layout size _ <- defLayout d
+            Right (LCon n [LArr (replicate size (LNum "0"))])
+      _ -> single
+  _ -> single
+  where
+    single = case inits of
+      [i] -> treeLit ctx ty i
+      _ -> Left ("cannot use " ++ show (length inits) ++ " values for " ++ T.unpack (renderType ty))
+
+structLit :: Ctx -> TypeDef -> [Init] -> Either String Lit
+structLit ctx d inits = do
+  n <- typeName ctx d
+  let fields = instanceFields d
+  case inits of
+    [INum 0] | length fields /= 1 -> LCon n <$> mapM (\f -> zeroLit ctx (fieldType f)) fields
+    _
+      | length fields == length inits -> LCon n <$> sequence (zipWith (treeLit ctx . fieldType) fields inits)
+      | otherwise -> Left ("wrong number of values for " ++ T.unpack (typeDefFullName d))
+
+treeLit :: Ctx -> Type -> Init -> Either String Lit
+treeLit ctx ty = \case
+  INum v
+    | isAggregate -> initLit ctx ty [INum v]
+    | otherwise -> scalarLit ctx ty (number v)
+  IList is -> case ty of
+    TModified _ _ t -> treeLit ctx t (IList is)
+    TArray e shape
+      | product (arraySizes shape) == length is -> LArr <$> mapM (treeLit ctx e) is
+    TValueType r ->
+      resolveTarget r >>= \case
+        TargetGuid -> mapM leaf is >>= guidLit
+        TargetDef d | classify d == KStruct -> structLit ctx d is
+        _ -> mismatch
+    _ -> mismatch
+  where
+    isAggregate = case ty of
+      TValueType r | Right (TargetDef d) <- resolveTarget r -> classify d `elem` [KStruct, KUnion]
+      _ -> False
+    leaf = \case
+      INum v -> Right v
+      IList _ -> mismatch
+    mismatch :: Either String a
+    mismatch = Left ("initializer does not match " ++ T.unpack (renderType ty))
+
+-- | A zero value of a field's type, for a struct initialized with @{0}@.
+zeroLit :: Ctx -> Type -> Either String Lit
+zeroLit ctx ty = initLit ctx ty [INum 0]
+
+number :: Integer -> Text
+number v
+  | v < 0 = "(" <> tshow v <> ")"
+  | otherwise = tshow v
+
+valueInteger :: Value -> Maybe Integer
+valueInteger = \case
+  VUInt8 x -> Just (toInteger x)
+  VUInt16 x -> Just (toInteger x)
+  VUInt32 x -> Just (toInteger x)
+  VInt32 x -> Just (toInteger x)
+  _ -> Nothing
 
 isNumeric :: Type -> Bool
 isNumeric = \case
@@ -566,6 +758,7 @@ render cfg decls =
          , "{-# LANGUAGE NoFieldSelectors #-}"
          , "{-# LANGUAGE NoImplicitPrelude #-}"
          , "{-# LANGUAGE PatternSynonyms #-}"
+         , "{-# LANGUAGE ViewPatterns #-}"
          , "{-# OPTIONS_GHC -Wno-unused-imports #-}"
          , ""
          , "module " <> cfgModuleName cfg

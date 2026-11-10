@@ -6,6 +6,7 @@
 {-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Windows.Win32
@@ -43,12 +44,15 @@ module Windows.Win32
   , pattern CLSCTX_PS_DLL
   , pattern CLSCTX_ALL
   , pattern CLSCTX_SERVER
+  , HANDLE (..)
   , HBRUSH (..)
   , HCURSOR (..)
   , HICON (..)
   , HINSTANCE (..)
+  , HKEY (..)
   , HRESULT (..)
   , HWND (..)
+  , INIT_ONCE (..)
   , IUnknown
   , LPARAM (..)
   , LRESULT (..)
@@ -106,7 +110,11 @@ module Windows.Win32
   , pattern MB_MISCMASK
   , OSVERSIONINFOW (..)
   , POINT (..)
+  , PROPERTYKEY (..)
+  , PSTR (..)
   , PWSTR (..)
+  , SID_IDENTIFIER_AUTHORITY (..)
+  , SRWLOCK (..)
   , SYSTEM_INFO (..)
   , SYSTEM_INFO_0 (..)
   , WNDCLASSW (..)
@@ -127,16 +135,30 @@ module Windows.Win32
   , WNDPROC
   , mkWNDPROC
   , WPARAM (..)
+  , pattern DD_BEEP_DEVICE_NAME
   , pattern E_POINTER
+  , pattern FOLDERID_Documents
+  , pattern HKEY_LOCAL_MACHINE
+  , pattern IDC_ARROW
+  , pattern INIT_ONCE_STATIC_INIT
   , pattern MAX_PATH
+  , pattern PKEY_Title
+  , pattern SECURITY_NT_AUTHORITY
+  , pattern SRWLOCK_INIT
   , pattern S_OK
+  , pattern WC_BUTTONW
   , coCreateInstance
+  , coTaskMemFree
   , getSystemInfo
   , getTickCount
   , getVersionExW
+  , loadCursorW
   , messageBoxW
   , registerClassW
+  , shGetKnownFolderPath
   , windowFromPoint
+  , lstrlenA
+  , lstrlenW
   ) where
 
 import Data.Bits qualified as B
@@ -257,6 +279,10 @@ pattern CLSCTX_ALL = CLSCTX 23
 pattern CLSCTX_SERVER :: CLSCTX
 pattern CLSCTX_SERVER = CLSCTX 21
 
+newtype HANDLE = HANDLE (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
 newtype HBRUSH = HBRUSH (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
@@ -273,6 +299,10 @@ newtype HINSTANCE = HINSTANCE (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
+newtype HKEY = HKEY (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
 -- | <https://learn.microsoft.com/office/client-developer/outlook/mapi/hresult>
 newtype HRESULT = HRESULT Int32
   deriving stock (P.Show)
@@ -281,6 +311,16 @@ newtype HRESULT = HRESULT Int32
 newtype HWND = HWND (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
+
+-- | A union or explicit-layout struct of 8 bytes, kept as raw bytes.
+newtype INIT_ONCE = INIT_ONCE (FixedArray 8 Word8)
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable INIT_ONCE where
+  sizeOf _ = 8
+  alignment _ = 8
+  peek p = INIT_ONCE P.<$> S.peek (F.castPtr p)
+  poke p (INIT_ONCE b) = S.poke (F.castPtr p) b
 
 -- | <https://learn.microsoft.com/windows/win32/api/unknwn/nn-unknwn-iunknown>
 data IUnknown
@@ -481,9 +521,49 @@ instance S.Storable POINT where
   peek p = POINT P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 4
   poke p (POINT f0 f1) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 4 f1
 
+-- | <https://learn.microsoft.com/windows/win32/api/wtypes/ns-wtypes-propertykey>
+data PROPERTYKEY = PROPERTYKEY
+  { fmtid :: !GUID
+  , pid :: !Word32
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable PROPERTYKEY where
+  sizeOf _ = 20
+  alignment _ = 4
+  peek p = PROPERTYKEY P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 16
+  poke p (PROPERTYKEY f0 f1) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 16 f1
+
+newtype PSTR = PSTR (Ptr Word8)
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
 newtype PWSTR = PWSTR (Ptr Word16)
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
+
+-- | <https://learn.microsoft.com/windows/win32/NetMgmt/odj-sid_identifier_authority>
+data SID_IDENTIFIER_AUTHORITY = SID_IDENTIFIER_AUTHORITY
+  { value :: !(FixedArray 6 Word8)
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable SID_IDENTIFIER_AUTHORITY where
+  sizeOf _ = 6
+  alignment _ = 1
+  peek p = SID_IDENTIFIER_AUTHORITY P.<$> S.peekByteOff p 0
+  poke p (SID_IDENTIFIER_AUTHORITY f0) = S.pokeByteOff p 0 f0
+
+data SRWLOCK = SRWLOCK
+  { ptr :: !(Ptr ())
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable SRWLOCK where
+  sizeOf _ = 8
+  alignment _ = 8
+  peek p = SRWLOCK P.<$> S.peekByteOff p 0
+  poke p (SRWLOCK f0) = S.pokeByteOff p 0 f0
 
 -- | <https://learn.microsoft.com/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info>
 data SYSTEM_INFO = SYSTEM_INFO
@@ -590,14 +670,59 @@ newtype WPARAM = WPARAM WordPtr
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
+pattern DD_BEEP_DEVICE_NAME :: PSTR
+pattern DD_BEEP_DEVICE_NAME <- ((P.== str'DD_BEEP_DEVICE_NAME) -> P.True)
+  where
+    DD_BEEP_DEVICE_NAME = str'DD_BEEP_DEVICE_NAME
+
+str'DD_BEEP_DEVICE_NAME :: PSTR
+str'DD_BEEP_DEVICE_NAME = PSTR (Core.ansiLiteral "\\Device\\Beep")
+{-# NOINLINE str'DD_BEEP_DEVICE_NAME #-}
+
 pattern E_POINTER :: HRESULT
 pattern E_POINTER = HRESULT (-2147467261)
+
+pattern FOLDERID_Documents :: GUID
+pattern FOLDERID_Documents = GUID 0xfdd39ad0 0x238f 0x46af (FixedArray [0xad, 0xb4, 0x6c, 0x85, 0x48, 0x3, 0x69, 0xc7])
+
+pattern HKEY_LOCAL_MACHINE :: HKEY
+pattern HKEY_LOCAL_MACHINE <- HKEY (F.ptrToIntPtr -> (-2147483646))
+  where
+    HKEY_LOCAL_MACHINE = HKEY (F.intPtrToPtr (-2147483646))
+
+pattern IDC_ARROW :: PWSTR
+pattern IDC_ARROW <- PWSTR (F.ptrToIntPtr -> 32512)
+  where
+    IDC_ARROW = PWSTR (F.intPtrToPtr 32512)
+
+pattern INIT_ONCE_STATIC_INIT :: INIT_ONCE
+pattern INIT_ONCE_STATIC_INIT = INIT_ONCE (FixedArray [0, 0, 0, 0, 0, 0, 0, 0])
 
 pattern MAX_PATH :: Word32
 pattern MAX_PATH = 260
 
+pattern PKEY_Title :: PROPERTYKEY
+pattern PKEY_Title = PROPERTYKEY (GUID 0xf29f85e0 0x4ff9 0x1068 (FixedArray [0xab, 0x91, 0x8, 0x0, 0x2b, 0x27, 0xb3, 0xd9])) 2
+
+pattern SECURITY_NT_AUTHORITY :: SID_IDENTIFIER_AUTHORITY
+pattern SECURITY_NT_AUTHORITY = SID_IDENTIFIER_AUTHORITY (FixedArray [0, 0, 0, 0, 0, 5])
+
+pattern SRWLOCK_INIT :: SRWLOCK
+pattern SRWLOCK_INIT <- SRWLOCK (F.ptrToIntPtr -> 0)
+  where
+    SRWLOCK_INIT = SRWLOCK (F.intPtrToPtr 0)
+
 pattern S_OK :: HRESULT
 pattern S_OK = HRESULT 0
+
+pattern WC_BUTTONW :: PWSTR
+pattern WC_BUTTONW <- ((P.== str'WC_BUTTONW) -> P.True)
+  where
+    WC_BUTTONW = str'WC_BUTTONW
+
+str'WC_BUTTONW :: PWSTR
+str'WC_BUTTONW = PWSTR (Core.wideLiteral "Button")
+{-# NOINLINE str'WC_BUTTONW #-}
 
 -- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance>
 coCreateInstance :: Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
@@ -610,6 +735,18 @@ proc'coCreateInstance = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoCreat
 
 foreign import ccall safe "dynamic"
   call'coCreateInstance :: FunPtr (Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-cotaskmemfree>
+coTaskMemFree :: Ptr () -> IO ()
+coTaskMemFree a1 =
+  call'coTaskMemFree proc'coTaskMemFree a1
+
+proc'coTaskMemFree :: FunPtr (Ptr () -> IO ())
+proc'coTaskMemFree = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoTaskMemFree")
+{-# NOINLINE proc'coTaskMemFree #-}
+
+foreign import ccall safe "dynamic"
+  call'coTaskMemFree :: FunPtr (Ptr () -> IO ()) -> Ptr () -> IO ()
 
 -- | <https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsysteminfo>
 getSystemInfo :: Ptr SYSTEM_INFO -> IO ()
@@ -647,6 +784,18 @@ proc'getVersionExW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "GetVers
 foreign import ccall safe "dynamic"
   call'getVersionExW :: FunPtr (Ptr OSVERSIONINFOW -> IO BOOL) -> Ptr OSVERSIONINFOW -> IO BOOL
 
+-- | <https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-loadcursorw>
+loadCursorW :: HINSTANCE -> PWSTR -> IO HCURSOR
+loadCursorW a1 a2 =
+  call'loadCursorW proc'loadCursorW a1 a2
+
+proc'loadCursorW :: FunPtr (HINSTANCE -> PWSTR -> IO HCURSOR)
+proc'loadCursorW = U.unsafePerformIO (Core.resolveProc "USER32.dll" "LoadCursorW")
+{-# NOINLINE proc'loadCursorW #-}
+
+foreign import ccall safe "dynamic"
+  call'loadCursorW :: FunPtr (HINSTANCE -> PWSTR -> IO HCURSOR) -> HINSTANCE -> PWSTR -> IO HCURSOR
+
 -- | <https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-messageboxw>
 messageBoxW :: HWND -> PWSTR -> PWSTR -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT
 messageBoxW a1 a2 a3 a4 =
@@ -671,6 +820,18 @@ proc'registerClassW = U.unsafePerformIO (Core.resolveProc "USER32.dll" "Register
 foreign import ccall safe "dynamic"
   call'registerClassW :: FunPtr (Ptr WNDCLASSW -> IO Word16) -> Ptr WNDCLASSW -> IO Word16
 
+-- | <https://learn.microsoft.com/windows/win32/api/shlobj_core/nf-shlobj_core-shgetknownfolderpath>
+shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT
+shGetKnownFolderPath a1 a2 a3 a4 =
+  call'shGetKnownFolderPath proc'shGetKnownFolderPath a1 a2 a3 a4
+
+proc'shGetKnownFolderPath :: FunPtr (Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT)
+proc'shGetKnownFolderPath = U.unsafePerformIO (Core.resolveProc "SHELL32.dll" "SHGetKnownFolderPath")
+{-# NOINLINE proc'shGetKnownFolderPath #-}
+
+foreign import ccall safe "dynamic"
+  call'shGetKnownFolderPath :: FunPtr (Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT) -> Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT
+
 -- | <https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-windowfrompoint>
 windowFromPoint :: POINT -> IO HWND
 windowFromPoint a1 =
@@ -683,3 +844,27 @@ proc'windowFromPoint = U.unsafePerformIO (Core.resolveProc "USER32.dll" "WindowF
 
 foreign import ccall safe "dynamic"
   call'windowFromPoint :: FunPtr (Word64 -> IO HWND) -> Word64 -> IO HWND
+
+-- | <https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-lstrlena>
+lstrlenA :: PSTR -> IO Int32
+lstrlenA a1 =
+  call'lstrlenA proc'lstrlenA a1
+
+proc'lstrlenA :: FunPtr (PSTR -> IO Int32)
+proc'lstrlenA = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "lstrlenA")
+{-# NOINLINE proc'lstrlenA #-}
+
+foreign import ccall safe "dynamic"
+  call'lstrlenA :: FunPtr (PSTR -> IO Int32) -> PSTR -> IO Int32
+
+-- | <https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-lstrlenw>
+lstrlenW :: PWSTR -> IO Int32
+lstrlenW a1 =
+  call'lstrlenW proc'lstrlenW a1
+
+proc'lstrlenW :: FunPtr (PWSTR -> IO Int32)
+proc'lstrlenW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "lstrlenW")
+{-# NOINLINE proc'lstrlenW #-}
+
+foreign import ccall safe "dynamic"
+  call'lstrlenW :: FunPtr (PWSTR -> IO Int32) -> PWSTR -> IO Int32

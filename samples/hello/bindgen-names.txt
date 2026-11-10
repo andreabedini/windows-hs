@@ -26,3 +26,23 @@ Windows.Win32.System.Com.CoCreateInstance
 Windows.Win32.Foundation.MAX_PATH
 Windows.Win32.Foundation.S_OK
 Windows.Win32.Foundation.E_POINTER
+
+# Constants that are not plain numbers: a handle, a pointer given as an
+# integer, wide and ANSI strings, a GUID, struct initializers (PROPERTYKEY,
+# a byte array, a pointer field) and a zeroed union
+Windows.Win32.System.Registry.HKEY_LOCAL_MACHINE
+Windows.Win32.UI.WindowsAndMessaging.IDC_ARROW
+Windows.Win32.UI.Controls.WC_BUTTONW
+Windows.Win32.Devices.Beep.DD_BEEP_DEVICE_NAME
+Windows.Win32.UI.Shell.FOLDERID_Documents
+Windows.Win32.Storage.EnhancedStorage.PKEY_Title
+Windows.Win32.Security.SECURITY_NT_AUTHORITY
+Windows.Win32.System.Threading.SRWLOCK_INIT
+Windows.Win32.System.Threading.INIT_ONCE_STATIC_INIT
+
+# Functions that use some of them
+Windows.Win32.UI.WindowsAndMessaging.LoadCursorW
+Windows.Win32.Globalization.lstrlenW
+Windows.Win32.Globalization.lstrlenA
+Windows.Win32.UI.Shell.SHGetKnownFolderPath
+Windows.Win32.System.Com.CoTaskMemFree

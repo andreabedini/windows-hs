@@ -74,6 +74,14 @@ Update this section when a package is added or its role changes.
   are `safe`.
 - Structs passed or returned by value follow the x64 rule: 1, 2, 4 or 8 bytes
   as an integer, otherwise by pointer (`Windows.Core.Marshal`).
+- Constants are pattern synonyms of every kind windows-sys has: numbers,
+  enum and typedef values, pointers given as integers (`HKEY_LOCAL_MACHINE`,
+  `IDC_ARROW`, matched through `F.ptrToIntPtr`), GUIDs (`Guid` attribute),
+  struct initializers (`Constant` attribute, e.g. `PROPERTYKEY`), and
+  strings. A string constant is `PWSTR`, or `PSTR` when marked
+  `NativeEncoding("ansi")`; it points to a `NOINLINE` value allocated on
+  first use by `Core.wideLiteral`/`Core.ansiLiteral`, and matching it
+  compares pointers, as C does.
 - Unions and explicit-layout structs are opaque byte arrays for now.
 - Struct records use `DuplicateRecordFields` and `NoFieldSelectors`; users
   read fields with `OverloadedRecordDot`.

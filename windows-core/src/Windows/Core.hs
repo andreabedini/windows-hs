@@ -4,10 +4,12 @@ module Windows.Core
   ( module Windows.Core.FixedArray
   , module Windows.Core.GUID
   , module Windows.Core.Link
+  , module Windows.Core.Literal
   , module Windows.Core.Marshal
   ) where
 
 import Windows.Core.FixedArray
 import Windows.Core.GUID
 import Windows.Core.Link
+import Windows.Core.Literal
 import Windows.Core.Marshal

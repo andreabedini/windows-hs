@@ -71,6 +71,17 @@ main = do
         , layout "Windows.Win32.Foundation" "HWND" `shouldBe` Right (Layout 8 8)
         ]
 
+  -- CONTEXT has x86, x64 and ARM64 definitions, each with its own nested
+  -- unions; only the x64 one may be chosen. In C it is also
+  -- DECLSPEC_ALIGN(16), which win32metadata does not record, so only the
+  -- size is checked (windows-sys 0.61 has the same 8-byte alignment).
+  test "per-architecture types with nested types" $
+    pure $ case bindgen defaultConfig db ["Windows.Win32.System.Diagnostics.Debug.CONTEXT"] of
+      Left es -> es
+      Right out ->
+        outWarnings out `shouldBe` []
+          ++ [layoutSize <$> defLayout t | (t, "CONTEXT") <- outStructs out] `shouldBe` [Right 1232]
+
   test "unknown names are errors" $
     pure $ case bindgen defaultConfig db ["Windows.Win32.Foundation.NoSuchThing"] of
       Left [_] -> []

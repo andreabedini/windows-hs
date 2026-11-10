@@ -6,9 +6,9 @@ Rust's [windows-rs](https://github.com/microsoft/windows-rs): a machine-readable
 description of the API surface goes in, and Haskell bindings come out.
 
 > **Status:** early development. The metadata reader works, and the
-> generator produces bindings for functions, constants, enums, typedefs,
-> structs and callbacks that compile and whose struct layouts match the
-> Windows headers. The sample program runs under wine. COM interfaces are
+> generator produces bindings for functions, constants (including strings,
+> GUIDs and property keys), enums, typedefs, structs and callbacks that
+> compile and whose struct layouts match the Windows headers. The sample program runs under wine. COM interfaces are
 > opaque types without methods, and unions are opaque bytes.
 
 ## How it works

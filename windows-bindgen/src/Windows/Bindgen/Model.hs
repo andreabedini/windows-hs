@@ -11,6 +11,7 @@ module Windows.Bindgen.Model
   , delegateInvoke
   , Selection (..)
   , select
+  , stringConstantType
   ) where
 
 import Data.Bits (testBit, (.&.))
@@ -36,6 +37,9 @@ data Kind
   | KInterface
   | -- | The @Apis@ class that holds a namespace's functions and constants.
     KApis
+  | -- | A custom attribute class, such as @NativeTypedefAttribute@. These
+    -- describe the metadata itself and are not projected.
+    KAttribute
   | KOther
   deriving stock (Eq, Show)
 
@@ -45,6 +49,7 @@ classify t
   | otherwise = case typeDefExtends t >>= typeDefOrRefName of
       Just ("System", "Enum") -> KEnum
       Just ("System", "MulticastDelegate") -> KDelegate
+      Just ("System", "Attribute") -> KAttribute
       Just ("System", "ValueType")
         | hasAttribute "NativeTypedefAttribute" t -> KNativeTypedef
         | typeDefFlags t .&. typeLayoutMask == typeExplicitLayout -> KUnion
@@ -69,8 +74,15 @@ resolveTarget = \case
     | otherwise -> byName (typeDefFullName d) (siblings d)
   IsTypeRef r
     | (typeRefNamespace r, typeRefName r) == ("System", "Guid") -> Right TargetGuid
-    | otherwise -> byName (typeRefNamespace r <> "." <> typeRefName r) (resolveTypeRef r)
+    | otherwise -> byName (typeRefNamespace r <> "." <> typeRefName r) (x64Candidates r)
   where
+    -- Nested types carry no SupportedArchitecture attribute, but their
+    -- enclosing type may have one definition per architecture (CONTEXT),
+    -- each with its own nested types. Choose the enclosing type first.
+    x64Candidates r = case typeRefScope r of
+      Just (ScopeTypeRef enclosing) ->
+        [n | e <- x64Candidates enclosing, n <- typeDefNestedTypes e, typeDefName n == typeRefName r]
+      _ -> filter supportsX64 (resolveTypeRef r)
     siblings d = findTypeDefs (rowDatabase d) (typeDefNamespace d) (typeDefName d)
     byName name candidates = case filter supportsX64 candidates of
       [d] -> Right (TargetDef d)
@@ -109,7 +121,7 @@ data Selection = Selection
 -- namespace's @Apis@ class. Names that match nothing are returned as errors.
 select :: Database -> [Text] -> Either [String] Selection
 select db names = case [T.unpack n | (n, []) <- matches] of
-  [] -> Right (closeOver (concatMap snd matches))
+  [] -> Right (closeOver (withStringTypes (concatMap snd matches)))
   unknown -> Left ["no type, function or constant named " ++ n | n <- unknown]
   where
     matches = [(n, lookupName n) | n <- names]
@@ -127,12 +139,33 @@ select db names = case [T.unpack n | (n, []) <- matches] of
             consts = [RootConstant f | a <- apis, f <- typeDefFields a, fieldName f == name]
          in types ++ fns ++ consts
 
+    -- String constants are typed as PWSTR or PSTR, which their signature
+    -- does not mention.
+    withStringTypes roots =
+      roots
+        ++ [ RootType t
+           | RootConstant f <- roots
+           , Just n <- [stringConstantType f]
+           , t <- findTypeDefs db "Windows.Win32.Foundation" n
+           ]
+
     everything t = case classify t of
       KApis ->
         [RootFunction m | m <- typeDefMethods t, supportsX64 m]
           ++ [RootConstant f | f <- typeDefFields t]
+      KAttribute -> []
       _ | supportsX64 t -> [RootType t]
       _ -> []
+
+-- | The type a string constant is projected as: @PSTR@ for constants marked
+-- @NativeEncoding("ansi")@, @PWSTR@ for the others, as windows-rs does
+-- with @PCSTR@ and @PCWSTR@. 'Nothing' for constants that are not strings.
+stringConstantType :: Field -> Maybe Text
+stringConstantType f = case constantValue <$> fieldConstant f of
+  Just (VString _)
+    | Just Attribute {attrArgs = [AttrString (Just "ansi")]} <- findAttribute "NativeEncodingAttribute" f -> Just "PSTR"
+    | otherwise -> Just "PWSTR"
+  _ -> Nothing
 
 data Root
   = RootType TypeDef
