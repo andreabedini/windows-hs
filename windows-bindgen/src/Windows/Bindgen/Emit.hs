@@ -679,8 +679,9 @@ wideParam ctx m (i, ty) = case (strip ty, find ((== i) . fromIntegral . paramSeq
   _ -> Right Nothing
 
 -- | What a function's wrapper does with its result. The rules are those of
--- windows-rs 0.58, the last release generated from win32metadata
--- (@SignatureKind@ and @handle_last_error@ in its @windows-bindgen@):
+-- windows-rs 0.58 (@SignatureKind@ and @handle_last_error@ in its
+-- @windows-bindgen@). windows-bindgen 0.59 to 0.66 keep them; later releases
+-- no longer read win32metadata.
 --
 -- * @HRESULT@: checked with 'Windows.Core.check';
 -- * @BOOL@ from a function that sets the last error: @FALSE@ throws

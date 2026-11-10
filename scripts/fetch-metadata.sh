@@ -1,7 +1,8 @@
 #!/bin/sh
 # Download the pinned win32metadata NuGet package and extract the .winmd
-# files into metadata/. The files are covered by the Microsoft SDK licence,
-# so they are fetched on demand rather than committed.
+# files into metadata/. The package is licensed under the Windows SDK licence
+# (sdk_license.txt in the package), so the files are fetched on demand rather
+# than committed.
 set -eu
 
 version=71.0.45-preview

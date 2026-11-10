@@ -90,8 +90,8 @@ On Windows, `cabal run hello` runs it.
 
 ### Fetch the metadata
 
-The `.winmd` files are covered by the Microsoft SDK licence and are not stored
-in this repository. To download the pinned version
+The NuGet package that contains the `.winmd` files is licensed under the
+Windows SDK licence terms, so they are not stored in this repository. To download the pinned version
 (`Microsoft.Windows.SDK.Win32Metadata` 71.0.45-preview) and check its
 SHA-256:
 

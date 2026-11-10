@@ -84,14 +84,18 @@ Update this section when a package is added or its role changes.
 - Functions: `proc'name` holds the resolved pointer (a NOINLINE CAF),
   `call'name` is the `dynamic` import, `name` is the exported wrapper. Calls
   are `safe`.
-- Wrappers follow windows-rs 0.58, the last release generated from
-  win32metadata (`functionShape` in `Emit`): an `HRESULT` is checked; a
-  `BOOL` or a handle from a function marked `SetLastError` throws
-  `lastError` on failure; a trailing out-only parameter of at most 16 bytes
-  is returned. `CanReturnMultipleSuccessValues` functions and everything
-  else keep their C result. `--sys` (`cfgSys`) keeps every C signature, like
-  windows-sys. Current windows-rs reads its own metadata, so check rules
-  against 0.58 (`crates/libs/bindgen/src/metadata.rs`, `rust/functions.rs`).
+- Wrappers follow windows-rs 0.58 (`functionShape` in `Emit`): an
+  `HRESULT` is checked; a `BOOL` or a handle from a function marked
+  `SetLastError` throws `lastError` on failure; a trailing out-only
+  parameter of at most 16 bytes is returned.
+  `CanReturnMultipleSuccessValues` functions and everything else keep their
+  C result. `--sys` (`cfgSys`) keeps every C signature, like windows-sys.
+  Check rules against 0.58 (`crates/libs/bindgen/src/metadata.rs`,
+  `rust/functions.rs`). windows-bindgen 0.59 to 0.66 still read
+  win32metadata and keep these rules in reorganised code
+  (`types/cpp_method.rs`). From 0.100.0 (September 2026) windows-rs
+  generates from its own header-derived metadata, which drops most of the
+  attributes these rules read.
 - String parameters (`[In] [Const] PWSTR`, NUL-terminated: not
   `NativeArrayInfo`, `MemorySize`, `NotNullTerminated` or
   `NullNullTerminated`) take any `Core.WideString s => s`: an `OsString`
@@ -146,8 +150,10 @@ Update this section when a package is added or its role changes.
 ## Metadata
 
 `./scripts/fetch-metadata.sh` downloads the pinned NuGet package and extracts
-`metadata/Windows.Win32.winmd`. `metadata/` is git-ignored: the files are under
-the Microsoft SDK licence, so never commit them. To move to a new metadata
+`metadata/Windows.Win32.winmd`. `metadata/` is git-ignored. The NuGet package
+gives the Windows SDK licence (`sdk_license.txt`, acceptance required) as its
+licence. The win32metadata repository calls the `.winmd` files MIT, but the
+package we download does not, so never commit them. To move to a new metadata
 release, change `version` and `sha256` in the script together.
 
 Tests that need the metadata take its path from the `WINMD_PATH` environment

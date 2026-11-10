@@ -112,8 +112,7 @@ main = do
           (code, _, err) <- readProcessWithExitCode gcc ["-std=c11", "-fsyntax-only", file] ""
           pure (if code == ExitSuccess then [] else [err])
 
-  -- The rules of windows-rs 0.58, the last release generated from
-  -- win32metadata.
+  -- The rules of windows-rs 0.58 (see 'functionShape').
   test "function wrappers check errors as windows-rs does" $ do
     let fns =
           [ "Windows.Win32.Foundation.CloseHandle" -- BOOL, sets the last error
