@@ -58,9 +58,10 @@ Cabal packages, one directory each, listed in `cabal.project`:
   `Windows.Core`): `resolveProc` (LoadLibraryExW/GetProcAddress with a module
   cache), struct-by-value marshalling for the x64 ABI, `FixedArray`, `GUID`,
   errors (`HRESULT`, the `WindowsError` exception, `lastError`, `check`),
-  union members (`Member`, `getMember`, `setMember`, `zeroed`), and string
-  parameters (`WideString`, with `OsString` and `Maybe OsString` instances;
-  depends on `os-string`). Its few static kernel32 imports are stubs that
+  union members (`Member`, `getMember`, `setMember`, `zeroed`), and strings
+  (`WideString`, with `OsString` and `Maybe OsString` instances, for
+  parameters; `withWideBuffer`, `peekWideBuffer` and `takeWideString` for
+  strings Windows writes; depends on `os-string`). Its few static kernel32 imports are stubs that
   throw on other systems, so the library builds, links and loads on Linux
   (tests, GHCi, Template Haskell such as `[osstr|...|]`); only calling
   Windows needs Windows. Its test suite covers the parts that call no
@@ -98,6 +99,22 @@ Update this section when a package is added or its role changes.
   values (`IDC_ARROW`) usable; the metadata does not mark which parameters
   accept those. Generated modules define `instance Core.WideString PWSTR`.
   `PSTR` (ANSI, code-page dependent) stays raw. Not under `--sys`.
+- Strings Windows writes are returned as `Core.OsString` (not under
+  `--sys`):
+  - An `[Out] PWSTR` buffer sized by an `[In]` integer parameter
+    (`NativeArrayInfo(CountParamIndex)`, used by no other array) is not an
+    argument: the wrapper allocates a zeroed buffer of that many UTF-16
+    units and returns its contents up to the first NUL, after the C result
+    (`getCurrentDirectoryW :: Word32 -> IO (Word32, Core.OsString)`). What a
+    function does when the buffer is too small differs and is not in the
+    metadata, so retrying is left to the caller. Buffers sized through a
+    pointer (`GetComputerNameW`) stay raw, as in windows-rs 0.58.
+  - A returned out parameter (see above) of type `PWSTR*` marked
+    `FreeWith(f)`, where `f` takes one pointer, is read and freed with `f`,
+    also when the call fails (`SHGetKnownFolderPath`). `select` adds every
+    function a `FreeWith` names to the selection. Almost nothing in the
+    metadata is marked `FreeWith`, so other strings Windows allocates stay
+    `Ptr PWSTR`.
 - Structs passed or returned by value follow the x64 rule: 1, 2, 4 or 8 bytes
   as an integer, otherwise by pointer (`Windows.Core.Marshal`).
 - Constants are pattern synonyms of every kind windows-sys has: numbers,

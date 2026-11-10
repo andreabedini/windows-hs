@@ -53,6 +53,7 @@ module Windows.Win32
   , HICON (..)
   , HINSTANCE (..)
   , HKEY (..)
+  , HMODULE (..)
   , HRESULT (..)
   , HWND (..)
   , INIT_ONCE (..)
@@ -172,7 +173,9 @@ module Windows.Win32
   , closeHandle
   , coCreateInstance
   , coTaskMemFree
+  , getCurrentDirectoryW
   , getFileAttributesW
+  , getModuleFileNameW
   , getSystemInfo
   , getTickCount
   , getVersionExW
@@ -326,6 +329,10 @@ newtype HINSTANCE = HINSTANCE (Ptr ())
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
 newtype HKEY = HKEY (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+newtype HMODULE = HMODULE (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
@@ -875,6 +882,21 @@ proc'coTaskMemFree = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoTaskMemF
 foreign import ccall safe "dynamic"
   call'coTaskMemFree :: FunPtr (Ptr () -> IO ()) -> Ptr () -> IO ()
 
+-- | <https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-getcurrentdirectory>
+--
+-- Returns the string written to @lpBuffer@, up to its first NUL. The wrapper allocates that buffer with room for @nBufferLength@ UTF-16 units.
+getCurrentDirectoryW :: Word32 -> IO (Word32, Core.OsString)
+getCurrentDirectoryW a1 =
+  Core.withWideBuffer a1 P.$ \a2 ->
+  (call'getCurrentDirectoryW proc'getCurrentDirectoryW a1 (PWSTR a2)) P.>>= \r' -> Core.peekWideBuffer a2 a1 P.>>= \a2' -> P.pure (r', a2')
+
+proc'getCurrentDirectoryW :: FunPtr (Word32 -> PWSTR -> IO Word32)
+proc'getCurrentDirectoryW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "GetCurrentDirectoryW")
+{-# NOINLINE proc'getCurrentDirectoryW #-}
+
+foreign import ccall safe "dynamic"
+  call'getCurrentDirectoryW :: FunPtr (Word32 -> PWSTR -> IO Word32) -> Word32 -> PWSTR -> IO Word32
+
 -- | <https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfileattributesw>
 getFileAttributesW :: Core.WideString s1 => s1 -> IO Word32
 getFileAttributesW a1 =
@@ -887,6 +909,21 @@ proc'getFileAttributesW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "Ge
 
 foreign import ccall safe "dynamic"
   call'getFileAttributesW :: FunPtr (PWSTR -> IO Word32) -> PWSTR -> IO Word32
+
+-- | <https://learn.microsoft.com/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamew>
+--
+-- Returns the string written to @lpFilename@, up to its first NUL. The wrapper allocates that buffer with room for @nSize@ UTF-16 units.
+getModuleFileNameW :: HMODULE -> Word32 -> IO (Word32, Core.OsString)
+getModuleFileNameW a1 a3 =
+  Core.withWideBuffer a3 P.$ \a2 ->
+  (call'getModuleFileNameW proc'getModuleFileNameW a1 (PWSTR a2) a3) P.>>= \r' -> Core.peekWideBuffer a2 a3 P.>>= \a2' -> P.pure (r', a2')
+
+proc'getModuleFileNameW :: FunPtr (HMODULE -> PWSTR -> Word32 -> IO Word32)
+proc'getModuleFileNameW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "GetModuleFileNameW")
+{-# NOINLINE proc'getModuleFileNameW #-}
+
+foreign import ccall safe "dynamic"
+  call'getModuleFileNameW :: FunPtr (HMODULE -> PWSTR -> Word32 -> IO Word32) -> HMODULE -> PWSTR -> Word32 -> IO Word32
 
 -- | <https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsysteminfo>
 getSystemInfo :: Ptr SYSTEM_INFO -> IO ()
@@ -971,10 +1008,10 @@ foreign import ccall safe "dynamic"
 
 -- | <https://learn.microsoft.com/windows/win32/api/shlobj_core/nf-shlobj_core-shgetknownfolderpath>
 --
--- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
-shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> IO PWSTR
+-- Returns the string in the last parameter, and frees it with 'coTaskMemFree'. Throws 'Core.WindowsError' if the result is a failure.
+shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> IO Core.OsString
 shGetKnownFolderPath a1 a2 a3 =
-  M.alloca P.$ \o -> call'shGetKnownFolderPath proc'shGetKnownFolderPath a1 a2 a3 o P.>>= Core.check P.>> S.peek o
+  M.alloca P.$ \o -> S.poke o (PWSTR F.nullPtr) P.>> call'shGetKnownFolderPath proc'shGetKnownFolderPath a1 a2 a3 o P.>>= \r -> S.peek o P.>>= \(PWSTR p) -> Core.takeWideString p (coTaskMemFree (F.castPtr p)) (Core.check r)
 
 proc'shGetKnownFolderPath :: FunPtr (Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT)
 proc'shGetKnownFolderPath = U.unsafePerformIO (Core.resolveProc "SHELL32.dll" "SHGetKnownFolderPath")

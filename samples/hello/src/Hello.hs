@@ -7,12 +7,11 @@ module Hello (hello) where
 
 import Control.Exception (try)
 import Control.Monad (when)
-import Foreign.C.String (peekCWString)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Utils (with)
-import Foreign.Ptr (castPtr, nullPtr)
+import Foreign.Ptr (nullPtr)
 import Foreign.Storable (peek)
-import System.OsString (osstr)
+import System.OsString (OsString, decodeUtf, osstr)
 import Windows.Core (WindowsError, lastError)
 import Windows.Win32
 
@@ -32,6 +31,7 @@ hello gui = do
   putStrLn ("Window at (0, 0): " ++ show window)
 
   constants
+  buffers
   errors
 
   when gui $ do
@@ -57,17 +57,33 @@ constants = do
   putStrLn ("Arrow cursor loaded: " ++ show (cursor /= nullPtr))
 
   -- A GUID constant, passed by reference. The wrapper returns the path,
-  -- the function's last parameter, and throws if the HRESULT is a failure.
-  PWSTR path <- with FOLDERID_Documents $ \folder -> shGetKnownFolderPath folder 0 (HANDLE nullPtr)
-  documents <- peekCWString (castPtr path)
-  coTaskMemFree (castPtr path)
-  putStrLn ("Documents folder: " ++ documents)
+  -- the function's last parameter, as an OsString, frees the copy Windows
+  -- allocated, and throws if the HRESULT is a failure.
+  documents <- with FOLDERID_Documents $ \folder -> shGetKnownFolderPath folder 0 (HANDLE nullPtr)
+  putStrLn . ("Documents folder: " ++) =<< decodeUtf documents
 
   -- Constants are patterns too.
   let describe = \case
         HKEY_LOCAL_MACHINE -> "HKEY_LOCAL_MACHINE"
         _ -> "another key"
   putStrLn ("HKEY_LOCAL_MACHINE matches itself: " ++ describe HKEY_LOCAL_MACHINE)
+
+-- | Strings that Windows writes to a buffer: the wrapper takes the size of
+-- the buffer, allocates it, and returns the string with the C result.
+buffers :: IO ()
+buffers = do
+  -- GetCurrentDirectoryW returns the size it needs, including the NUL, when
+  -- the buffer is too small. Ask with an empty one first.
+  (needed, _) <- getCurrentDirectoryW 0
+  (written, directory) <- getCurrentDirectoryW needed
+  putStrLn . (("Current directory (" ++ show written ++ " characters): ") ++) =<< decodeUtf directory
+
+  -- GetModuleFileNameW cuts the name short to fit, and returns the size of
+  -- the buffer when it does.
+  (_, exe) <- getModuleFileNameW (HMODULE nullPtr) MAX_PATH
+  (cut, start) <- getModuleFileNameW (HMODULE nullPtr) 4
+  putStrLn . ("Program: " ++) =<< decodeUtf exe
+  putStrLn . (("Its first 3 characters (" ++ show cut ++ "): ") ++) =<< decodeUtf (start :: OsString)
 
 -- | Errors reported through @GetLastError@.
 errors :: IO ()

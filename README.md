@@ -100,6 +100,20 @@ cursor <- loadCursorW (HINSTANCE nullPtr) IDC_ARROW
 answer <- messageBoxW (HWND nullPtr) [osstr|Hello|] Nothing MB_OK
 ```
 
+Strings that Windows writes come back as `OsString` too. When a function
+writes to a buffer whose size is another parameter, the wrapper takes the
+size, allocates the buffer and returns what was written with the C result.
+Functions differ in what they do when the buffer is too small, and the
+metadata does not say, so asking again with a larger size is up to you:
+
+```haskell
+(needed, _) <- getCurrentDirectoryW 0           -- the size it needs
+(_, directory) <- getCurrentDirectoryW needed
+```
+
+A string that Windows allocates is read and freed for you where the metadata
+names the function that frees it, as for `SHGetKnownFolderPath`.
+
 ### Naming what to generate
 
 Each name is a win32metadata namespace followed by the item's name:

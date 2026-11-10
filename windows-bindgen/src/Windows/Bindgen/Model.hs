@@ -12,6 +12,7 @@ module Windows.Bindgen.Model
   , Selection (..)
   , select
   , stringConstantType
+  , freeWith
   , coreType
   ) where
 
@@ -131,7 +132,7 @@ data Selection = Selection
 -- namespace's @Apis@ class. Names that match nothing are returned as errors.
 select :: Database -> [Text] -> Either [String] Selection
 select db names = case [T.unpack n | (n, []) <- matches] of
-  [] -> Right (closeOver (withStringTypes (concatMap snd matches)))
+  [] -> Right (closeOver (withFreeFunctions (withStringTypes (concatMap snd matches))))
   unknown -> Left ["no type, function or constant named " ++ n | n <- unknown]
   where
     matches = [(n, lookupName n) | n <- names]
@@ -159,6 +160,28 @@ select db names = case [T.unpack n | (n, []) <- matches] of
            , t <- findTypeDefs db "Windows.Win32.Foundation" n
            ]
 
+    -- A function that names the function to free one of its outputs
+    -- (FreeWith) brings that function along, so that its wrapper can free
+    -- what it returns, and so can its callers.
+    withFreeFunctions roots =
+      roots
+        ++ [ RootFunction f
+           | RootFunction m <- roots
+           , p <- methodParams m
+           , Just n <- [freeWith p]
+           , f <- Map.findWithDefault [] n functionsByName
+           ]
+
+    functionsByName =
+      Map.fromListWith
+        (++)
+        [ (methodName m, [m])
+        | t <- typeDefs db
+        , classify t == KApis
+        , m <- typeDefMethods t
+        , supportsX64 m
+        ]
+
     everything t = case classify t of
       KApis ->
         [RootFunction m | m <- typeDefMethods t, supportsX64 m]
@@ -175,6 +198,13 @@ stringConstantType f = case constantValue <$> fieldConstant f of
   Just (VString _)
     | Just Attribute {attrArgs = [AttrString (Just "ansi")]} <- findAttribute "NativeEncodingAttribute" f -> Just "PSTR"
     | otherwise -> Just "PWSTR"
+  _ -> Nothing
+
+-- | The function that frees what Windows returns in this parameter, from
+-- its @FreeWith@ attribute: a bare name such as @CoTaskMemFree@.
+freeWith :: Param -> Maybe Text
+freeWith p = case findAttribute "FreeWithAttribute" p of
+  Just Attribute {attrArgs = [AttrString (Just n)]} -> Just n
   _ -> Nothing
 
 data Root

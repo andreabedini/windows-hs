@@ -45,7 +45,10 @@ Windows.Win32.UI.WindowsAndMessaging.LoadCursorW
 Windows.Win32.Globalization.lstrlenW
 Windows.Win32.Globalization.lstrlenA
 Windows.Win32.UI.Shell.SHGetKnownFolderPath
-Windows.Win32.System.Com.CoTaskMemFree
+
+# Functions that write a string to a buffer the caller sizes
+Windows.Win32.System.Environment.GetCurrentDirectoryW
+Windows.Win32.System.LibraryLoader.GetModuleFileNameW
 
 # Functions that report failure through GetLastError: CloseHandle's wrapper
 # checks its BOOL, GetFileAttributesW returns a number to compare

@@ -3,13 +3,15 @@
 -- | Tests for the parts of the runtime that do not call Windows.
 module Main (main) where
 
+import Control.Exception (ErrorCall (..), throwIO, try)
 import Control.Monad (unless)
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Data.Word (Word16, Word32, Word64, Word8)
-import Foreign.Marshal.Array (peekArray0)
+import Foreign.Marshal.Array (peekArray0, pokeArray, withArray0)
 import Foreign.Ptr (nullPtr)
 import Foreign.Storable (Storable (..))
 import System.Exit (exitFailure)
-import System.OsString (OsString, unsafeEncodeUtf)
+import System.OsString (unsafeEncodeUtf)
 import Windows.Core.FixedArray
 import Windows.Core.HRESULT
 import Windows.Core.Member
@@ -38,6 +40,22 @@ main = do
   isNull <- withWideString (Nothing :: Maybe OsString) (pure . (== nullPtr))
   -- A bare Nothing has a type: no annotation needed.
   bareNull <- withWideString Nothing (pure . (== nullPtr))
+
+  -- Buffers that a function writes: read up to the first NUL, or all of
+  -- the buffer when it has none; zeroed, so an unwritten buffer is empty.
+  let clef = [0x68, 0xE9, 0xD834, 0xDD1E] :: [Word16]
+  written <- withWideBuffer (8 :: Word32) $ \p -> pokeArray p clef >> peekWideBuffer p (8 :: Word32)
+  truncated <- withWideBuffer (2 :: Int) $ \p -> pokeArray p clef >> peekWideBuffer p (2 :: Int)
+  unwritten <- withWideBuffer (4 :: Word32) $ \p -> peekWideBuffer p (4 :: Word32)
+  noBuffer <- withWideBuffer (0 :: Word32) (pure . (== nullPtr))
+
+  -- Strings Windows allocates are freed even when the call failed.
+  freed <- newIORef (0 :: Int)
+  let free = modifyIORef freed (+ 1)
+  taken <- withArray0 0 clef $ \p -> takeWideString p free (pure ())
+  thrown <- withArray0 0 clef $ \p -> try (takeWideString p free (throwIO (ErrorCall "failed")))
+  _ <- takeWideString nullPtr free (pure ())
+  freeCount <- readIORef freed
   let failures =
         concat
           [ -- Values from winerror.h: E_ACCESSDENIED is
@@ -58,6 +76,12 @@ main = do
             getMember @"low" (setMember @"third" 0xffff (setMember @"whole" 0x0001000200030004 u0)) `shouldBe` 0x00030004
           , units `shouldBe` ([0x61, 0xE9, 0xD834, 0xDD1E] :: [Word16])
           , [isNull, bareNull] `shouldBe` [True, True]
+          , [written, truncated, unwritten] `shouldBe` [unsafeEncodeUtf "h\233\x1D11E", unsafeEncodeUtf "h\233", mempty]
+          , noBuffer `shouldBe` True
+          , taken `shouldBe` unsafeEncodeUtf "h\233\x1D11E"
+          , either (\(ErrorCall e) -> e) (const "no exception") thrown `shouldBe` "failed"
+          , -- Twice: not for the NULL string.
+            freeCount `shouldBe` 2
           ]
   mapM_ putStrLn failures
   unless (null failures) exitFailure

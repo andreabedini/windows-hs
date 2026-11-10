@@ -118,7 +118,7 @@ main = do
     let fns =
           [ "Windows.Win32.Foundation.CloseHandle" -- BOOL, sets the last error
           , "Windows.Win32.Storage.FileSystem.CreateFileW" -- HANDLE, sets the last error
-          , "Windows.Win32.UI.Shell.SHGetKnownFolderPath" -- HRESULT and an out PWSTR
+          , "Windows.Win32.UI.Shell.SHGetKnownFolderPath" -- HRESULT and an out string
           , "Windows.Win32.System.Com.CoResumeClassObjects" -- HRESULT
           , "Windows.Win32.System.Com.CoCreateGuid" -- HRESULT and an out GUID
           , "Windows.Win32.System.Com.CoInitializeEx" -- HRESULT, but S_FALSE is a success too: kept
@@ -135,12 +135,14 @@ main = do
           , "coCreateGuid :: IO GUID"
           , "coInitializeEx :: Ptr () -> Word32 -> IO HRESULT"
           , "coResumeClassObjects :: IO ()"
+          , -- Named by SHGetKnownFolderPath's FreeWith.
+            "coTaskMemFree :: Ptr () -> IO ()"
           , "createFileW :: Core.WideString s1 => s1 -> Word32 -> FILE_SHARE_MODE -> Ptr SECURITY_ATTRIBUTES -> FILE_CREATION_DISPOSITION -> FILE_FLAGS_AND_ATTRIBUTES -> HANDLE -> IO HANDLE"
           , "getFileAttributesW :: Core.WideString s1 => s1 -> IO Word32"
           , "getSystemTimeAsFileTime :: IO FILETIME"
           , "localFree :: HLOCAL -> IO HLOCAL"
           , "regCloseKey :: HKEY -> IO WIN32_ERROR"
-          , "shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> IO PWSTR"
+          , "shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> IO Core.OsString"
           ]
         ++ ( (filter (`elem` ["closeHandle :: HANDLE -> IO BOOL", "getSystemTimeAsFileTime :: Ptr FILETIME -> IO ()"]) <$> signatures defaultConfig {cfgSys = True})
                `shouldBe` Right ["closeHandle :: HANDLE -> IO BOOL", "getSystemTimeAsFileTime :: Ptr FILETIME -> IO ()"]
@@ -163,6 +165,30 @@ main = do
           ]
         ++ ( (filter ("messageBoxW" `Text.isPrefixOf`) <$> signaturesOf db defaultConfig {cfgSys = True} fns)
                `shouldBe` Right ["messageBoxW :: HWND -> PWSTR -> PWSTR -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT"]
+           )
+
+  -- Strings written to a buffer sized by an integer parameter, and
+  -- returned strings freed with their FreeWith function, are OsStrings.
+  test "returned strings are OsStrings" $ do
+    let fns =
+          [ "Windows.Win32.System.Environment.GetCurrentDirectoryW" -- a buffer
+          , "Windows.Win32.Storage.FileSystem.GetVolumeInformationW" -- two buffers, BOOL checked
+          , "Windows.Win32.Storage.FileSystem.GetFullPathNameW" -- and a pointer into it
+          , "Windows.Win32.System.WindowsProgramming.GetComputerNameW" -- sized by pointer: raw
+          , "Windows.Win32.Security.Credentials.CredMarshalCredentialW" -- FreeWith, but BOOL: raw
+          ]
+    pure $
+      signaturesOf db defaultConfig fns
+        `shouldBe` Right
+          [ "credFree :: Ptr () -> IO ()"
+          , "credMarshalCredentialW :: CRED_MARSHAL_TYPE -> Ptr () -> Ptr PWSTR -> IO ()"
+          , "getComputerNameW :: PWSTR -> Ptr Word32 -> IO ()"
+          , "getCurrentDirectoryW :: Word32 -> IO (Word32, Core.OsString)"
+          , "getFullPathNameW :: Core.WideString s1 => s1 -> Word32 -> Ptr PWSTR -> IO (Word32, Core.OsString)"
+          , "getVolumeInformationW :: Core.WideString s1 => s1 -> Word32 -> Ptr Word32 -> Ptr Word32 -> Ptr Word32 -> Word32 -> IO (Core.OsString, Core.OsString)"
+          ]
+        ++ ( (filter ("getCurrentDirectoryW" `Text.isPrefixOf`) <$> signaturesOf db defaultConfig {cfgSys = True} fns)
+               `shouldBe` Right ["getCurrentDirectoryW :: Word32 -> PWSTR -> IO Word32"]
            )
 
   -- Compiling this output takes about a minute; scripts/check-win32-surface.sh

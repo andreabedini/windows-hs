@@ -126,9 +126,17 @@ generate cfg sel =
     functionList = sortOn methodName (selFunctions sel)
     delegateMks = [mkName n | (t, n) <- Map.toList (ctxTypes ctx), classify t == KDelegate]
     functionNames = dedupe (Set.fromList delegateMks) (map (valueName . methodName) functionList)
+    -- The functions that emit, by C name, for wrappers that free what they
+    -- return with one of them (FreeWith).
+    emitted =
+      Map.fromList
+        [ (methodName m, (n, m))
+        | (m, n) <- zip functionList functionNames
+        , Right _ <- [emitFunction (cfgSys cfg) ctx Map.empty n m]
+        ]
     (fnWarnings, fnDecls) =
       partitionEithers
-        [ either (Left . warn (methodName m)) Right (emitFunction (cfgSys cfg) ctx n m)
+        [ either (Left . warn (methodName m)) Right (emitFunction (cfgSys cfg) ctx emitted n m)
         | (m, n) <- zip functionList functionNames
         ]
 
@@ -454,30 +462,40 @@ checkSig sig = do
 ------------------------------------------------------------------------------
 -- Functions
 
-emitFunction :: Bool -> Ctx -> Text -> MethodDef -> Either String Decl
-emitFunction sys ctx name m = do
+emitFunction :: Bool -> Ctx -> Map Text (Text, MethodDef) -> Text -> MethodDef -> Either String Decl
+emitFunction sys ctx frees name m = do
   im <- maybe (Left "no DllImport") Right (methodImplMap m)
   let sig = methodSignature m
   checkSig sig
   params <- mapM (slot ctx) (sigParams sig)
   ret <- slot ctx (sigReturnType sig)
   ffiType <- ffiFunctionType ctx sig
-  shape <- if sys then Right Raw else functionShape ctx m im sig
+  shape <- if sys then Right Raw else functionShape ctx frees m im sig
   strings <- if sys then Right (map (const Nothing) params) else mapM (wideParam ctx m) (zip [1 ..] (sigParams sig))
+  buffers <- if sys then Right Map.empty else wideBuffers ctx m (sigParams sig)
   let procName = "proc'" <> name
       callName = "call'" <> name
-      args = ["a" <> tshow i | i <- [1 .. length params]]
-      -- A returned out parameter is passed a buffer, not an argument.
-      (hsArgs, outArg) = case shape of
-        ReturnOut {} -> (init args, ["o"])
-        _ -> (args, [])
+      n = length params
+      args = ["a" <> tshow i | i <- [1 .. n]]
+      -- A returned out parameter is passed a pointer the wrapper allocates,
+      -- and a string buffer one sized by its count parameter: neither is an
+      -- argument of the wrapper.
+      outIndex = case shape of
+        ReturnOut {} -> Just (n - 1)
+        ReturnString {} -> Just (n - 1)
+        _ -> Nothing
+      hsIndices = [i | i <- [0 .. n - 1], Just i /= outIndex, i `Map.notMember` buffers]
       -- String parameters are type variables, s1, s2, ...
       stringVars = Map.fromList (zip [i | (i, Just _) <- zip [0 :: Int ..] strings] ["s" <> tshow k | k <- [1 :: Int ..]])
-      argIn a s str
-        | Just (con, _) <- str = "(" <> con <> " " <> a <> "')"
-        | slotConv s == Plain = a
+      argIn i
+        | Just i == outIndex = "o"
+        | Just (_, con, _) <- Map.lookup i buffers = "(" <> con <> " " <> a <> ")"
+        | Just (con, _) <- strings !! i = "(" <> con <> " " <> a <> "')"
+        | slotConv (params !! i) == Plain = a
         | otherwise = a <> "'"
-      callArgs = ["r" | slotConv ret == ByRef] ++ zipWith3 argIn (hsArgs ++ outArg) params strings
+        where
+          a = args !! i
+      callArgs = ["r" | slotConv ret == ByRef] ++ map argIn [0 .. n - 1]
       call = T.unwords (callName : procName : callArgs)
       result = case slotConv ret of
         Plain -> call
@@ -490,29 +508,76 @@ emitFunction sys ctx name m = do
         CheckHandle con invalid -> result <> " P.>>= \\h@(" <> con <> " v) -> if " <> invalid "v" <> " then Core.throwLastError else P.pure h"
         ReturnOut hr _ ->
           "M.alloca P.$ \\o -> " <> result <> (if hr then " P.>>= Core.check" else "") <> " P.>> S.peek o"
-      wrappers = [w | (a, s, str) <- zip3 hsArgs params strings, Just w <- [wrapper a (slotConv s) str]]
-      wrapper a conv str = case (str, conv) of
-        (Just _, _) -> Just ("Core.withWideString " <> a <> " P.$ \\" <> a <> "' ->")
-        (_, AsWord) -> Just ("Core.structToWord " <> a <> " P.>>= \\" <> a <> "' ->")
-        (_, ByRef) -> Just ("Core.withStructCopy " <> a <> " P.$ \\" <> a <> "' ->")
-        (_, Plain) -> Nothing
-      hsResult = case shape of
+        -- The pointer starts as NULL, so that a function that fails
+        -- without writing it frees nothing.
+        ReturnString hr con free ->
+          "M.alloca P.$ \\o -> S.poke o (" <> con <> " F.nullPtr) P.>> "
+            <> result
+            <> (if hr then " P.>>= \\r -> " else " P.>> ")
+            <> "S.peek o P.>>= \\("
+            <> con
+            <> " p) -> Core.takeWideString p ("
+            <> free
+            <> " (F.castPtr p)) "
+            <> (if hr then "(Core.check r)" else "(P.pure ())")
+      shapeResult = case shape of
         Raw -> slotHs ret
         CheckHResult -> "()"
         CheckBool _ -> "()"
         CheckHandle {} -> slotHs ret
         ReturnOut _ t -> t
-      argTypes = [Map.findWithDefault (slotHs s) i stringVars | (i, s) <- zip [0 ..] (take (length hsArgs) params)]
+        ReturnString {} -> "Core.OsString"
+      -- String buffers are read after the call and returned after its
+      -- result.
+      bufferReads = [(args !! b, args !! c) | (b, (c, _, _)) <- Map.toList buffers]
+      keepResult = shapeResult /= "()"
+      tuple xs = case xs of
+        [x] -> x
+        _ -> "(" <> T.intercalate ", " xs <> ")"
+      final
+        | null bufferReads = checked
+        | otherwise =
+            "("
+              <> checked
+              <> ") P.>>= \\"
+              <> (if keepResult then "r' -> " else "_ -> ")
+              <> T.concat ["Core.peekWideBuffer " <> b <> " " <> c <> " P.>>= \\" <> b <> "' -> " | (b, c) <- bufferReads]
+              <> "P.pure "
+              <> tuple (["r'" | keepResult] ++ [b <> "'" | (b, _) <- bufferReads])
+      hsResult
+        | null bufferReads = shapeResult
+        | otherwise = tuple ([shapeResult | keepResult] ++ ["Core.OsString" | _ <- bufferReads])
+      wrappers =
+        [w | i <- hsIndices, Just w <- [wrapper (args !! i) (slotConv (params !! i)) (strings !! i)]]
+          ++ ["Core.withWideBuffer " <> c <> " P.$ \\" <> b <> " ->" | (b, c) <- bufferReads]
+      wrapper a conv str = case (str, conv) of
+        (Just _, _) -> Just ("Core.withWideString " <> a <> " P.$ \\" <> a <> "' ->")
+        (_, AsWord) -> Just ("Core.structToWord " <> a <> " P.>>= \\" <> a <> "' ->")
+        (_, ByRef) -> Just ("Core.withStructCopy " <> a <> " P.$ \\" <> a <> "' ->")
+        (_, Plain) -> Nothing
+      argTypes = [Map.findWithDefault (slotHs (params !! i)) i stringVars | i <- hsIndices]
       constraint = case Map.elems stringVars of
         [] -> ""
         [v] -> "Core.WideString " <> v <> " => "
         vs -> "(" <> T.intercalate ", " ["Core.WideString " <> v | v <- vs] <> ") => "
       hsSig = constraint <> T.intercalate " -> " (argTypes ++ ["IO " <> atom hsResult])
-      optionalStrings = [n | Just (_, Just n) <- strings]
+      optionalStrings = [o | Just (_, Just o) <- strings]
       stringComment =
-        [ "-- | Optional: " <> T.intercalate ", " ["@" <> n <> "@" | n <- optionalStrings] <> " can be @Nothing@ (NULL)."
+        [ "-- | Optional: " <> T.intercalate ", " ["@" <> o <> "@" | o <- optionalStrings] <> " can be @Nothing@ (NULL)."
         | not (null optionalStrings)
         ]
+      bufferComment =
+        [ "-- | Returns the string written to @" <> bn <> "@, up to its first NUL. The wrapper allocates that buffer with room for @" <> cn <> "@ UTF-16 units."
+        | (_, (_, _, (bn, cn))) <- Map.toList buffers
+        ]
+          ++ [ "-- | Pass NULL for @" <> o <> "@: a pointer into the buffer would not outlive the wrapper."
+             | not (Map.null buffers)
+             , (p, ty) <- zip (sortOn paramSequence [q | q <- methodParams m, paramSequence q > 0]) (sigParams sig)
+             , hasFlag paramOut (paramFlags p)
+             , TPtr t <- [strip ty]
+             , isPwstr t
+             , let o = paramName p
+             ]
       dll = moduleRefName (implMapScope im)
       entry = implMapImportName im
   unless (T.all (\c -> c /= '"' && c /= '\\') (dll <> entry)) $ Left "unexpected characters in DLL or entry point name"
@@ -521,11 +586,11 @@ emitFunction sys ctx name m = do
       { declExports = [name]
       , declBody =
           T.unlines $
-            commentLines (docComment m ++ shapeComment shape ++ stringComment)
+            commentLines (docComment m ++ shapeComment shape ++ bufferComment ++ stringComment)
               ++ [ name <> " :: " <> hsSig
-                 , T.unwords (name : hsArgs) <> " ="
+                 , T.unwords (name : map (args !!) hsIndices) <> " ="
                  ]
-              ++ map ("  " <>) (wrappers ++ [checked])
+              ++ map ("  " <>) (wrappers ++ [final])
               ++ [ ""
                  , procName <> " :: FunPtr (" <> ffiType <> ")"
                  , procName <> " = U.unsafePerformIO (Core.resolveProc \"" <> dll <> "\" \"" <> entry <> "\")"
@@ -535,6 +600,65 @@ emitFunction sys ctx name m = do
                  , "  " <> callName <> " :: FunPtr (" <> ffiType <> ") -> " <> ffiType
                  ]
       }
+
+-- | Buffers the function writes a string to: an @[Out] PWSTR@ parameter
+-- whose size in UTF-16 units is an integer parameter (@NativeArrayInfo@
+-- with @CountParamIndex@) that only it uses. The wrapper allocates the
+-- buffer from that size and returns the string; windows-rs 0.58 passes the
+-- pair as one slice in the same cases. Buffers whose size is passed by
+-- pointer (@GetComputerNameW@) stay raw, as there.
+--
+-- Maps the buffer's index to its size parameter's index, the constructor
+-- of @PWSTR@, and the names of both parameters.
+wideBuffers :: Ctx -> MethodDef -> [Type] -> Either String (Map Int (Int, Text, (Text, Text)))
+wideBuffers ctx m tys = Map.fromList <$> sequence candidates
+  where
+    rows = Map.fromList [(fromIntegral (paramSequence p) - 1, p) | p <- methodParams m, paramSequence p > 0]
+    index attr key p = case findAttribute attr p of
+      Just a | Just (AttrValue v) <- lookup key (attrNamedArgs a) -> valueInt v
+      _ -> Nothing
+    -- Every parameter that gives the size of another.
+    sizeRefs =
+      [c | p <- Map.elems rows, Just c <- [index "NativeArrayInfoAttribute" "CountParamIndex" p]]
+        ++ [c | p <- Map.elems rows, Just c <- [index "MemorySizeAttribute" "BytesParamIndex" p]]
+    candidates =
+      [ (\con -> (i, (c, con, (paramName p, paramName q)))) <$> typeName ctx d
+      | (i, p) <- Map.toList rows
+      , i < length tys
+      , Just d <- [pwstr (tys !! i)]
+      , let fl = paramFlags p
+      , hasFlag paramOut fl
+      , not (hasFlag paramIn fl)
+      , Just c <- [index "NativeArrayInfoAttribute" "CountParamIndex" p]
+      , c /= i
+      , c >= 0
+      , c < length tys
+      , length (filter (== c) sizeRefs) == 1
+      , Just q <- [Map.lookup c rows]
+      , hasFlag paramIn (paramFlags q)
+      , not (hasFlag paramOut (paramFlags q))
+      , isInteger (strip (tys !! c))
+      ]
+    pwstr t = case strip t of
+      TValueType r
+        | Right (TargetDef d) <- resolveTarget r
+        , isPwstr t ->
+            Just d
+      _ -> Nothing
+    isInteger = (`elem` [TInt8, TUInt8, TInt16, TUInt16, TInt32, TUInt32, TInt64, TUInt64, TIntPtr, TUIntPtr])
+    valueInt = \case
+      VInt16 x -> Just (fromIntegral x)
+      VInt32 x -> Just (fromIntegral x)
+      VUInt16 x -> Just (fromIntegral x)
+      _ -> Nothing
+
+-- | @PWSTR@.
+isPwstr :: Type -> Bool
+isPwstr t = case strip t of
+  TValueType r
+    | Right (TargetDef d) <- resolveTarget r ->
+        (typeDefNamespace d, typeDefName d) == ("Windows.Win32.Foundation", "PWSTR")
+  _ -> False
 
 -- | A string the function only reads: an @[In] [Const] PWSTR@ parameter that
 -- is NUL-terminated (not counted by another parameter, not a list of
@@ -580,6 +704,10 @@ data Shape
   | -- | Whether the result is an @HRESULT@ to check, and the type of the
     -- returned out parameter.
     ReturnOut Bool Text
+  | -- | A returned out parameter that is a string Windows allocates: whether
+    -- the result is an @HRESULT@ to check, the constructor of @PWSTR@, and
+    -- the function that frees the string (from @FreeWith@).
+    ReturnString Bool Text Text
 
 -- | Join a documentation link and a note on the wrapper into one Haddock
 -- comment.
@@ -598,16 +726,18 @@ shapeComment = \case
   CheckHandle {} -> ["-- | Throws 'Core.WindowsError' from @GetLastError@ if the handle is invalid."]
   ReturnOut True _ -> ["-- | Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure."]
   ReturnOut False _ -> ["-- | Returns the last parameter."]
+  ReturnString True _ free -> ["-- | Returns the string in the last parameter, and frees it with '" <> free <> "'. Throws 'Core.WindowsError' if the result is a failure."]
+  ReturnString False _ free -> ["-- | Returns the string in the last parameter, and frees it with '" <> free <> "'."]
 
-functionShape :: Ctx -> MethodDef -> ImplMap -> MethodSig -> Either String Shape
-functionShape ctx m im sig
+functionShape :: Ctx -> Map Text (Text, MethodDef) -> MethodDef -> ImplMap -> MethodSig -> Either String Shape
+functionShape ctx frees m im sig
   | hasAttribute "CanReturnMultipleSuccessValuesAttribute" m = Right Raw
   | otherwise = case strip (sigReturnType sig) of
-      TVoid | retval -> ReturnOut False <$> outType
+      TVoid | retval -> returned False
       TValueType r
         | Right (TargetDef d) <- resolveTarget r -> case () of
             _
-              | coreType d == Just "HRESULT" -> if retval then ReturnOut True <$> outType else Right CheckHResult
+              | coreType d == Just "HRESULT" -> if retval then returned True else Right CheckHResult
               | (typeDefNamespace d, typeDefName d) == ("Windows.Win32.Foundation", "BOOL")
               , lastError ->
                   CheckBool <$> typeName ctx d
@@ -657,6 +787,18 @@ functionShape ctx m im sig
     outType = case lastType of
       TPtr t -> hsType ctx t
       t -> Left ("return parameter of type " ++ T.unpack (renderType t))
+    -- A string that Windows allocates is read and freed when the function
+    -- that frees it takes just the pointer.
+    returned hr = case (lastType, Map.lookup (fromIntegral n) rows >>= freeWith) of
+      (TPtr (TValueType r), Just f)
+        | Right (TargetDef d) <- resolveTarget r
+        , (typeDefNamespace d, typeDefName d) == ("Windows.Win32.Foundation", "PWSTR")
+        , Just (free, fm) <- Map.lookup f frees
+        , let fs = methodSignature fm
+        , isVoid (sigReturnType fs)
+        , [TPtr _] <- map strip (sigParams fs) ->
+            (\con -> ReturnString hr con free) <$> typeName ctx d
+      _ -> ReturnOut hr <$> outType
     isVoid = \case
       TVoid -> True
       TPtr t -> isVoid t
