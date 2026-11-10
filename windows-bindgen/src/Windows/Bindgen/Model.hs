@@ -84,19 +84,31 @@ resolveTarget = \case
     | otherwise -> byName (typeDefFullName d) (siblings d)
   IsTypeRef r
     | (typeRefNamespace r, typeRefName r) == ("System", "Guid") -> Right TargetGuid
-    | otherwise -> byName (typeRefNamespace r <> "." <> typeRefName r) (x64Candidates r)
+    | otherwise -> byName (typeRefNamespace r <> "." <> typeRefName r) (candidates r)
   where
-    -- Nested types carry no SupportedArchitecture attribute, but their
-    -- enclosing type may have one definition per architecture (CONTEXT),
-    -- each with its own nested types. Choose the enclosing type first.
-    x64Candidates r = case typeRefScope r of
+    -- The definitions a reference may mean, for byName to choose the x64
+    -- one from. Nested types carry no SupportedArchitecture attribute, but
+    -- their enclosing type may have one definition per architecture
+    -- (CONTEXT), each with its own nested types: choose the enclosing type
+    -- first.
+    candidates r = case typeRefScope r of
       Just (ScopeTypeRef enclosing) ->
-        [n | e <- x64Candidates enclosing, n <- typeDefNestedTypes e, typeDefName n == typeRefName r]
-      _ -> filter supportsX64 (resolveTypeRef r)
+        [ n
+        | e <- filter supportsX64 (candidates enclosing)
+        , n <- typeDefNestedTypes e
+        , typeDefName n == typeRefName r
+        ]
+      _ -> resolveTypeRef r
     siblings d = findTypeDefs (rowDatabase d) (typeDefNamespace d) (typeDefName d)
-    byName name candidates = case filter supportsX64 candidates of
+    byName name defs = case filter supportsX64 defs of
       [d] -> Right (TargetDef d)
-      [] -> Left ("no x64 definition of " ++ T.unpack name)
+      []
+        | not (null defs) -> Left ("no x64 definition of " ++ T.unpack name)
+        -- A few Win32 APIs take WinRT types, which win32metadata refers to
+        -- but does not define.
+        | "Windows." `T.isPrefixOf` name && not ("Windows.Win32." `T.isPrefixOf` name) ->
+            Left (T.unpack name ++ " is a WinRT type, and WinRT is out of scope")
+        | otherwise -> Left (T.unpack name ++ " is not defined in the metadata files read")
       ds -> Left (show (length ds) ++ " x64 definitions of " ++ T.unpack name)
 
 -- | Whether a definition applies to x64. Definitions without a

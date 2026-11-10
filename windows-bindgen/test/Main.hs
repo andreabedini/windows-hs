@@ -100,11 +100,29 @@ main = do
     let name = "Windows.Win32.AI.MachineLearning.DirectML.DML_BUFFER_BINDING"
     pure $ case (bindgen defaultConfig [db] [name], bindgen defaultConfig dbs [name]) of
       (Right alone, Right both) ->
-        length (outWarnings alone) `shouldBe` 1
+        map (Text.isInfixOf "ID3D12Resource is not defined in the metadata files read" . Text.pack) (outWarnings alone) `shouldBe` [True]
           ++ outWarnings both `shouldBe` []
           ++ [defLayout t | (t, "DML_BUFFER_BINDING") <- outStructs both] `shouldBe` [Right (Layout 24 8)]
           ++ check ("ID3D12Resource" `Text.isInfixOf` outModule both) "ID3D12Resource is not emitted"
       (alone, both) -> either id (const []) alone ++ either id (const []) both
+
+  -- win32metadata refers to the WinRT types a few functions take, but does
+  -- not define them.
+  test "functions that take WinRT types are skipped" $
+    pure $ case bindgen defaultConfig dbs ["Windows.Win32.System.WinRT.CreateDispatcherQueueController"] of
+      Left es -> es
+      Right out ->
+        map (Text.isInfixOf "Windows.System.DispatcherQueueController is a WinRT type" . Text.pack) (outWarnings out)
+          `shouldBe` [True]
+
+  -- GDI+ declares opaque structs without fields; their Storable instance
+  -- must not bind a pointer it does not use (-Wunused-matches).
+  test "structs without fields" $
+    pure $ case bindgen defaultConfig dbs ["Windows.Win32.Graphics.GdiPlus.GpBitmap"] of
+      Left es -> es
+      Right out ->
+        filter (Text.isPrefixOf "  peek ") (Text.lines (outModule out))
+          `shouldBe` ["  peek _ = P.pure GpBitmap"]
 
   sample <- generateSample dbs
   test "sample matches the committed module" $ do

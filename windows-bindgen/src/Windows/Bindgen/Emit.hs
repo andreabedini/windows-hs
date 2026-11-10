@@ -378,7 +378,7 @@ emitType ctx members t = do
                      , "instance S.Storable " <> name <> " where"
                      , "  sizeOf _ = " <> tshow size
                      , "  alignment _ = " <> tshow align
-                     , "  peek p = " <> peekBody
+                     , "  peek " <> (if null offsets then "_" else "p") <> " = " <> peekBody
                      , "  poke " <> (if null vars then "_" else "p") <> " (" <> T.unwords (name : vars) <> ") = " <> pokeBody
                      ]
           }
