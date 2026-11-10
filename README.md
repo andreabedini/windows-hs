@@ -99,7 +99,9 @@ SHA-256:
 ./scripts/fetch-metadata.sh
 ```
 
-This writes `metadata/Windows.Win32.winmd`. It needs `curl` and `unzip`.
+This writes `metadata/Windows.Win32.winmd` and
+`metadata/Microsoft.Direct3D.D3D12.winmd`, which defines the Direct3D 12 types
+that some Win32 APIs use. It needs `curl` and `unzip`.
 
 ### Generate a module
 
@@ -108,11 +110,14 @@ Name the functions, constants and types you need, or whole namespaces.
 depend on:
 
 ```sh
-cabal run -v0 windows-bindgen -- -o src/Windows/Win32.hs \
-  metadata/Windows.Win32.winmd \
+cabal run -v0 windows-bindgen -- --in metadata -o src/Windows/Win32.hs \
   Windows.Win32.System.SystemInformation.GetTickCount \
   Windows.Win32.UI.WindowsAndMessaging.MessageBoxW
 ```
+
+`--in` takes a `.winmd` file or a directory of them, and can be repeated.
+Give it every file the names need: a type can be defined in a different file
+from the item that uses it.
 
 Each name is a win32metadata namespace followed by the item's name:
 
@@ -208,8 +213,9 @@ cabal build all
 cabal test all
 ```
 
-The tests read `metadata/Windows.Win32.winmd`; set `WINMD_PATH` to use a
-different file. Development happens on Linux with GHC 9.12.
+The tests read `metadata/Windows.Win32.winmd` and
+`metadata/Microsoft.Direct3D.D3D12.winmd`; set `WINMD_PATH` to read
+`Windows.Win32.winmd` from elsewhere, with the Direct3D 12 file next to it. Development happens on Linux with GHC 9.12.
 
 [`coverage/win32/names.txt`](coverage/win32/names.txt) lists every function
 the `Win32` package binds, the first coverage target; the tests check that

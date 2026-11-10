@@ -318,8 +318,10 @@ findTypeDef db ns name = listToMaybe (findTypeDefs db ns name)
 findTypeDefs :: Database -> Text -> Text -> [TypeDef]
 findTypeDefs db ns name = map (unsafeRow db) (Map.findWithDefault [] (ns, name) (dbTypeIndex db))
 
--- | The definitions a type reference resolves to in the same file. A
--- reference whose scope is another TypeRef names a nested type, and is
+-- | The definitions a type reference resolves to (II.22.38). A reference
+-- scoped to another assembly resolves in the files linked with this one
+-- ('WinMD.linkDatabases'); any other top-level reference in the same file.
+-- A reference whose scope is another TypeRef names a nested type, and is
 -- resolved inside the enclosing type's definitions.
 resolveTypeRef :: TypeRef -> [TypeDef]
 resolveTypeRef r = case typeRefScope r of
@@ -329,6 +331,8 @@ resolveTypeRef r = case typeRefScope r of
     , n <- typeDefNestedTypes e
     , typeDefName n == typeRefName r
     ]
+  Just (ScopeAssemblyRef _) ->
+    Map.findWithDefault [] (typeRefNamespace r, typeRefName r) (dbLinked (rowDatabase r))
   _ -> findTypeDefs (rowDatabase r) (typeRefNamespace r) (typeRefName r)
 
 typeDefFlags :: TypeDef -> Word32

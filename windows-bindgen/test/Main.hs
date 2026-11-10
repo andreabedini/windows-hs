@@ -1,6 +1,7 @@
--- | Tests for the generator. They read Windows.Win32.winmd (see
--- scripts/fetch-metadata.sh; WINMD_PATH overrides the location) and the
--- sample in samples/hello.
+-- | Tests for the generator. They read Windows.Win32.winmd and, from the
+-- same directory, Microsoft.Direct3D.D3D12.winmd (see
+-- scripts/fetch-metadata.sh; WINMD_PATH overrides the location of
+-- Windows.Win32.winmd), and the sample in samples/hello.
 module Main (main) where
 
 import Control.Exception (SomeException, evaluate, try)
@@ -13,7 +14,7 @@ import Data.Text.IO qualified as T
 import System.Directory (findExecutable, getTemporaryDirectory)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..), exitFailure)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
 import System.IO (hFlush, stdout)
 import System.Process (readProcessWithExitCode)
 import WinMD
@@ -27,13 +28,16 @@ sampleDir = "../samples/hello"
 main :: IO ()
 main = do
   path <- fromMaybe "../metadata/Windows.Win32.winmd" <$> lookupEnv "WINMD_PATH"
-  db <-
-    readDatabase path >>= \case
-      Right db -> pure db
-      Left e -> do
-        putStrLn ("cannot load " ++ path ++ ": " ++ show e)
-        putStrLn "run scripts/fetch-metadata.sh or set WINMD_PATH"
-        exitFailure
+  let load p =
+        readDatabase p >>= \case
+          Right db -> pure db
+          Left e -> do
+            putStrLn ("cannot load " ++ p ++ ": " ++ show e)
+            putStrLn "run scripts/fetch-metadata.sh or set WINMD_PATH"
+            exitFailure
+  db <- load path
+  d3d12 <- load (takeDirectory path </> "Microsoft.Direct3D.D3D12.winmd")
+  let dbs = [db, d3d12]
   failures <- newIORef (0 :: Int)
   let test name body = do
         putStr (name ++ ": ")
@@ -77,19 +81,31 @@ main = do
   -- unions; only the x64 one may be chosen. In C it is DECLSPEC_ALIGN(16),
   -- which win32metadata does not record (see declaredAlign).
   test "per-architecture types with nested types" $
-    pure $ case bindgen defaultConfig db ["Windows.Win32.System.Diagnostics.Debug.CONTEXT"] of
+    pure $ case bindgen defaultConfig dbs ["Windows.Win32.System.Diagnostics.Debug.CONTEXT"] of
       Left es -> es
       Right out ->
         outWarnings out `shouldBe` []
           ++ [defLayout t | (t, "CONTEXT") <- outStructs out] `shouldBe` [Right (Layout 1232 16)]
 
   test "unknown names are errors" $
-    pure $ case bindgen defaultConfig db ["Windows.Win32.Foundation.NoSuchThing"] of
+    pure $ case bindgen defaultConfig dbs ["Windows.Win32.Foundation.NoSuchThing"] of
       Left [_] -> []
       Left es -> ["expected one error, got " ++ show es]
       Right _ -> ["expected an error"]
 
-  sample <- generateSample db
+  -- DML_BUFFER_BINDING, in Windows.Win32.winmd, holds an ID3D12Resource,
+  -- which only Microsoft.Direct3D.D3D12.winmd defines.
+  test "types from another metadata file" $ do
+    let name = "Windows.Win32.AI.MachineLearning.DirectML.DML_BUFFER_BINDING"
+    pure $ case (bindgen defaultConfig [db] [name], bindgen defaultConfig dbs [name]) of
+      (Right alone, Right both) ->
+        length (outWarnings alone) `shouldBe` 1
+          ++ outWarnings both `shouldBe` []
+          ++ [defLayout t | (t, "DML_BUFFER_BINDING") <- outStructs both] `shouldBe` [Right (Layout 24 8)]
+          ++ check ("ID3D12Resource" `Text.isInfixOf` outModule both) "ID3D12Resource is not emitted"
+      (alone, both) -> either id (const []) alone ++ either id (const []) both
+
+  sample <- generateSample dbs
   test "sample matches the committed module" $ do
     committed <- T.readFile (sampleDir </> "src/Windows/Win32.hs")
     pure $ case sample of
@@ -126,7 +142,7 @@ main = do
           , "Windows.Win32.Storage.FileSystem.GetFileAttributesW" -- a number, kept
           , "Windows.Win32.Foundation.LocalFree" -- a handle, but excluded
           ]
-        signatures cfg = signaturesOf db cfg fns
+        signatures cfg = signaturesOf dbs cfg fns
     pure $
       signatures defaultConfig
         `shouldBe` Right
@@ -156,13 +172,13 @@ main = do
           , "Windows.Win32.Storage.FileSystem.CreateFileA" -- ANSI
           ]
     pure $
-      signaturesOf db defaultConfig fns
+      signaturesOf dbs defaultConfig fns
         `shouldBe` Right
           [ "createFileA :: PSTR -> Word32 -> FILE_SHARE_MODE -> Ptr SECURITY_ATTRIBUTES -> FILE_CREATION_DISPOSITION -> FILE_FLAGS_AND_ATTRIBUTES -> HANDLE -> IO HANDLE"
           , "getStringTypeW :: Word32 -> PWSTR -> Int32 -> Ptr Word16 -> IO ()"
           , "messageBoxW :: (Core.WideString s1, Core.WideString s2) => HWND -> s1 -> s2 -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT"
           ]
-        ++ ( (filter ("messageBoxW" `Text.isPrefixOf`) <$> signaturesOf db defaultConfig {cfgSys = True} fns)
+        ++ ( (filter ("messageBoxW" `Text.isPrefixOf`) <$> signaturesOf dbs defaultConfig {cfgSys = True} fns)
                `shouldBe` Right ["messageBoxW :: HWND -> PWSTR -> PWSTR -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT"]
            )
 
@@ -177,7 +193,7 @@ main = do
           , "Windows.Win32.Security.Credentials.CredMarshalCredentialW" -- FreeWith, but BOOL: raw
           ]
     pure $
-      signaturesOf db defaultConfig fns
+      signaturesOf dbs defaultConfig fns
         `shouldBe` Right
           [ "credFree :: Ptr () -> IO ()"
           , "credMarshalCredentialW :: CRED_MARSHAL_TYPE -> Ptr () -> Ptr PWSTR -> IO ()"
@@ -186,7 +202,7 @@ main = do
           , "getFullPathNameW :: Core.WideString s1 => s1 -> Word32 -> Ptr PWSTR -> IO (Word32, Core.OsString)"
           , "getVolumeInformationW :: Core.WideString s1 => s1 -> Word32 -> Ptr Word32 -> Ptr Word32 -> Ptr Word32 -> Word32 -> IO (Core.OsString, Core.OsString)"
           ]
-        ++ ( (filter ("getCurrentDirectoryW" `Text.isPrefixOf`) <$> signaturesOf db defaultConfig {cfgSys = True} fns)
+        ++ ( (filter ("getCurrentDirectoryW" `Text.isPrefixOf`) <$> signaturesOf dbs defaultConfig {cfgSys = True} fns)
                `shouldBe` Right ["getCurrentDirectoryW :: Word32 -> PWSTR -> IO Word32"]
            )
 
@@ -194,7 +210,7 @@ main = do
   -- does that and checks its layouts.
   test "the Win32 package's functions generate without skips" $ do
     names <- parseNames <$> T.readFile "../coverage/win32/names.txt"
-    pure $ case bindgen defaultConfig db names of
+    pure $ case bindgen defaultConfig dbs names of
       Left es -> es
       Right out -> outWarnings out `shouldBe` []
 
@@ -204,17 +220,20 @@ main = do
     exitFailure
 
 -- | The type signatures of the generated functions.
-signaturesOf :: Database -> Config -> [Text.Text] -> Either [String] [Text.Text]
-signaturesOf db cfg fns = case bindgen cfg db fns of
+signaturesOf :: [Database] -> Config -> [Text.Text] -> Either [String] [Text.Text]
+signaturesOf dbs cfg fns = case bindgen cfg dbs fns of
   Left es -> Left es
   Right out -> Right [l | l <- Text.lines (outModule out), Just (c, _) <- [Text.uncons l], isAsciiLower c, not ("pattern " `Text.isPrefixOf` l), " :: " `Text.isInfixOf` l, not ("'" `Text.isInfixOf` l)]
 
-generateSample :: Database -> IO (Either [String] Output)
-generateSample db = do
+generateSample :: [Database] -> IO (Either [String] Output)
+generateSample dbs = do
   names <- parseNames <$> T.readFile (sampleDir </> "bindgen-names.txt")
-  pure (bindgen defaultConfig db names)
+  pure (bindgen defaultConfig dbs names)
 
 shouldBe :: (Eq a, Show a) => a -> a -> [String]
 shouldBe actual expected
   | actual == expected = []
   | otherwise = ["expected " ++ show expected ++ ", got " ++ show actual]
+
+check :: Bool -> String -> [String]
+check ok msg = if ok then [] else [msg]

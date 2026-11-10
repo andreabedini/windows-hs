@@ -1,7 +1,7 @@
 # Names passed to windows-bindgen to generate src/Windows/Win32.hs.
 # Regenerate with:
-#   cabal run -v0 windows-bindgen -- -n samples/hello/bindgen-names.txt \
-#     -o samples/hello/src/Windows/Win32.hs metadata/Windows.Win32.winmd
+#   cabal run -v0 windows-bindgen -- --in metadata \
+#     -n samples/hello/bindgen-names.txt -o samples/hello/src/Windows/Win32.hs
 
 # Plain functions and a struct containing a union
 Windows.Win32.System.SystemInformation.GetTickCount

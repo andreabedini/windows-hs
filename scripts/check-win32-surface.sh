@@ -19,10 +19,10 @@ mkdir -p "$work/src/Windows"
 cd "$root"
 cabal build -v0 windows-bindgen
 cabal run -v0 windows-bindgen -- \
+  --in metadata \
   -n coverage/win32/names.txt \
   -o "$work/src/Windows/Win32.hs" \
-  --c-layout-checks "$work/layout-checks.c" \
-  metadata/Windows.Win32.winmd 2>"$work/warnings"
+  --c-layout-checks "$work/layout-checks.c" 2>"$work/warnings"
 if [ -s "$work/warnings" ]; then
   cat "$work/warnings" >&2
   printf 'windows-bindgen skipped some items\n' >&2

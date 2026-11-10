@@ -56,6 +56,8 @@ executable windows-bindgen
   main-is:        Main.hs
   build-depends:
     , base
+    , directory
+    , filepath
     , text
     , windows-bindgen
     , winmd

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Download the pinned win32metadata NuGet package and extract the .winmd
-# files into metadata/. The package is licensed under the Windows SDK licence
+# files into metadata/: Windows.Win32.winmd, and Microsoft.Direct3D.D3D12.winmd,
+# which defines the Direct3D 12 types that Windows.Win32.winmd uses. The package is licensed under the Windows SDK licence
 # (sdk_license.txt in the package), so the files are fetched on demand rather
 # than committed.
 set -eu
@@ -31,5 +32,5 @@ if [ "$actual" != "$sha256" ]; then
   exit 1
 fi
 
-unzip -o -q "$pkg" 'Windows.Win32.winmd' 'sdk_license.txt' -d "$dest"
-printf '%s\n' "$dest/Windows.Win32.winmd"
+unzip -o -q "$pkg" 'Windows.Win32.winmd' 'Microsoft.Direct3D.D3D12.winmd' 'sdk_license.txt' -d "$dest"
+printf '%s\n' "$dest/Windows.Win32.winmd" "$dest/Microsoft.Direct3D.D3D12.winmd"

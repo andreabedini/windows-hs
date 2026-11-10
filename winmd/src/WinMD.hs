@@ -11,6 +11,7 @@ module WinMD
     Database
   , readDatabase
   , parseDatabase
+  , linkDatabases
   , WinMDError (..)
 
     -- * Tables
@@ -26,7 +27,7 @@ module WinMD
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import WinMD.Attribute
-import WinMD.Internal.Database (Database, WinMDError (..), loadDatabase)
+import WinMD.Internal.Database (Database, WinMDError (..), linkDatabases, loadDatabase)
 import WinMD.Signature
 import WinMD.Tables
 

@@ -125,27 +125,31 @@ data Selection = Selection
   -- ^ The requested types and every type they depend on.
   }
 
--- | Expand requested names into a selection.
+-- | Expand requested names into a selection from linked metadata files
+-- ('linkDatabases').
 --
 -- A name is either a namespace (selecting everything in it) or
 -- @Namespace.Name@, where @Name@ is a type, or a function or constant of the
--- namespace's @Apis@ class. Names that match nothing are returned as errors.
-select :: Database -> [Text] -> Either [String] Selection
-select db names = case [T.unpack n | (n, []) <- matches] of
+-- namespace's @Apis@ class. A namespace may span several files. Names that
+-- match nothing are returned as errors.
+select :: [Database] -> [Text] -> Either [String] Selection
+select dbs names = case [T.unpack n | (n, []) <- matches] of
   [] -> Right (closeOver (withFreeFunctions (withStringTypes (concatMap snd matches))))
   unknown -> Left ["no type, function or constant named " ++ n | n <- unknown]
   where
     matches = [(n, lookupName n) | n <- names]
 
-    namespaces = Map.fromListWith (++) [(typeDefNamespace t, [t]) | t <- typeDefs db]
+    namespaces = Map.fromListWith (++) [(typeDefNamespace t, [t]) | t <- allTypeDefs]
+    allTypeDefs = concatMap typeDefs dbs
+    find ns name = concat [findTypeDefs db ns name | db <- dbs]
 
     lookupName :: Text -> [Root]
     lookupName n = case Map.lookup n namespaces of
       Just ts -> concatMap everything ts
       Nothing ->
         let (ns, name) = splitName n
-            types = [RootType t | t <- findTypeDefs db ns name, classify t /= KApis, supportsX64 t]
-            apis = findTypeDefs db ns "Apis"
+            types = [RootType t | t <- find ns name, classify t /= KApis, supportsX64 t]
+            apis = find ns "Apis"
             fns = [RootFunction m | a <- apis, m <- typeDefMethods a, methodName m == name, supportsX64 m]
             consts = [RootConstant f | a <- apis, f <- typeDefFields a, fieldName f == name]
          in types ++ fns ++ consts
@@ -157,7 +161,7 @@ select db names = case [T.unpack n | (n, []) <- matches] of
         ++ [ RootType t
            | RootConstant f <- roots
            , Just n <- [stringConstantType f]
-           , t <- findTypeDefs db "Windows.Win32.Foundation" n
+           , t <- find "Windows.Win32.Foundation" n
            ]
 
     -- A function that names the function to free one of its outputs
@@ -176,7 +180,7 @@ select db names = case [T.unpack n | (n, []) <- matches] of
       Map.fromListWith
         (++)
         [ (methodName m, [m])
-        | t <- typeDefs db
+        | t <- allTypeDefs
         , classify t == KApis
         , m <- typeDefMethods t
         , supportsX64 m

@@ -71,5 +71,6 @@ test-suite winmd-test
   main-is:        Main.hs
   build-depends:
     , base
+    , filepath
     , text
     , winmd

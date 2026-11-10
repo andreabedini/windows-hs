@@ -1,5 +1,6 @@
--- | Tests against Windows.Win32.winmd. The file comes from
--- scripts/fetch-metadata.sh; WINMD_PATH overrides its location.
+-- | Tests against Windows.Win32.winmd, and Microsoft.Direct3D.D3D12.winmd
+-- in the same directory. The files come from scripts/fetch-metadata.sh;
+-- WINMD_PATH overrides the location of Windows.Win32.winmd.
 module Main (main) where
 
 import Control.Exception (SomeException, evaluate, try)
@@ -13,19 +14,22 @@ import Data.Text qualified as T
 import Data.Word (Word32)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
+import System.FilePath (takeDirectory, (</>))
 import System.IO (hFlush, stdout)
 import WinMD
 
 main :: IO ()
 main = do
   path <- fromMaybe "../metadata/Windows.Win32.winmd" <$> lookupEnv "WINMD_PATH"
-  db <-
-    readDatabase path >>= \case
-      Right db -> pure db
-      Left e -> do
-        putStrLn ("cannot load " ++ path ++ ": " ++ show e)
-        putStrLn "run scripts/fetch-metadata.sh or set WINMD_PATH"
-        exitFailure
+  let load p =
+        readDatabase p >>= \case
+          Right db -> pure db
+          Left e -> do
+            putStrLn ("cannot load " ++ p ++ ": " ++ show e)
+            putStrLn "run scripts/fetch-metadata.sh or set WINMD_PATH"
+            exitFailure
+  db <- load path
+  d3d12 <- load (takeDirectory path </> "Microsoft.Direct3D.D3D12.winmd")
   failures <- newIORef (0 :: Int)
   let test name body = do
         putStr (name ++ ": ")
@@ -169,6 +173,31 @@ main = do
         , map typeDefFullName resolved `shouldBe` ["Windows.Win32.System.SystemInformation.SYSTEM_INFO/_Anonymous_e__Union"]
         ]
 
+  test "type references across linked files" $ do
+    -- Windows.Win32.winmd uses Direct3D 12 types, and the Direct3D 12 file
+    -- uses Win32 types, through TypeRefs scoped to the other assembly
+    -- (II.22.38). They resolve only once the files are linked.
+    let fieldRef d ns ty name = do
+          t <- typeDef d ns ty
+          case [fieldType f | f <- typeDefFields t, fieldName f == name] of
+            [TClass (IsTypeRef r)] -> pure r
+            [TValueType (IsTypeRef r)] -> pure r
+            other -> fail ("unexpected type of " ++ T.unpack name ++ ": " ++ show other)
+        toD3D12 d = fieldRef d "Windows.Win32.AI.MachineLearning.DirectML" "DML_BUFFER_BINDING" "Buffer"
+        toWin32 d = fieldRef d "Windows.Win32.Graphics.Direct3D12" "D3D12_RESOURCE_DESC" "Format"
+        resolved r = [(typeDefFullName t, map moduleName (rowsOf (rowDatabase t))) | t <- resolveTypeRef r]
+    (w, d) <- case linkDatabases [db, d3d12, db] of
+      [w, d] -> pure (w, d)
+      ds -> fail ("expected two linked databases, got " ++ show (length ds))
+    unlinked <- (,) <$> toD3D12 db <*> toWin32 d3d12
+    linked <- (,) <$> toD3D12 w <*> toWin32 d
+    pure $
+      concat
+        [ map resolved [fst unlinked, snd unlinked] `shouldBe` [[], []]
+        , resolved (fst linked) `shouldBe` [("Windows.Win32.Graphics.Direct3D12.ID3D12Resource", ["Microsoft.Direct3D.D3D12.winmd"])]
+        , resolved (snd linked) `shouldBe` [("Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT", ["Windows.Win32.winmd"])]
+        ]
+
   test "method and field owners" $
     pure $
       take 5 $
@@ -183,7 +212,7 @@ main = do
              , fieldParent f /= Just t
              ]
 
-  test "every signature, constant and attribute decodes" $ do
+  test "every signature, constant and attribute in both files decodes" $ do
     counts <- newIORef (0 :: Int)
     let force :: (Show a) => a -> IO ()
         force x = length (show x) `seq` modifyIORef' counts (+ 1)
@@ -195,8 +224,8 @@ main = do
           mapM_ (\f -> force (fieldType f) >> mapM_ (force . constantValue) (fieldConstant f) >> attrs f) (typeDefFields t)
           mapM_ (\m -> force (methodSignature m) >> attrs m >> mapM_ (\p -> attrs p >> mapM_ (force . constantValue) (paramConstant p)) (methodParams m)) (typeDefMethods t)
       )
-      (typeDefs db)
-    mapM_ (force . typeSpecType) (rowsOf db :: [TypeSpec])
+      (concatMap typeDefs [db, d3d12])
+    mapM_ (force . typeSpecType) (concatMap rowsOf [db, d3d12] :: [TypeSpec])
     n <- readIORef counts
     putStr ("(" ++ show n ++ " items) ")
     pure []

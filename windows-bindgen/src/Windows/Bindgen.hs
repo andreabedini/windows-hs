@@ -28,9 +28,11 @@ defaultConfig =
     }
 
 -- | Generate one module containing the named items and everything they
--- depend on. Names that match nothing are errors.
-bindgen :: Config -> Database -> [Text] -> Either [String] Output
-bindgen cfg db names = generate cfg <$> select db names
+-- depend on, from one or more metadata files, which are linked
+-- ('linkDatabases') so that types one file uses from another resolve.
+-- Names that match nothing are errors.
+bindgen :: Config -> [Database] -> [Text] -> Either [String] Output
+bindgen cfg dbs names = generate cfg <$> select (linkDatabases dbs) names
 
 -- | Parse a names file: one name per line, with @#@ starting a comment.
 parseNames :: Text -> [Text]

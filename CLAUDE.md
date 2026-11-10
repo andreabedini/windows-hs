@@ -35,7 +35,8 @@ Cabal packages, one directory each, listed in `cabal.project`:
   - `WinMD.Internal.Parser`: bounds-checked little-endian parser.
   - `WinMD.Internal.PE`: finds the metadata in the PE image.
   - `WinMD.Internal.Database`: table schema, coded indexes, loading and
-    validation, raw column and heap access.
+    validation, linking files that refer to each other
+    (`linkDatabases`), raw column and heap access.
   - `WinMD.Tables`: typed rows (`Row 'TTypeDef`, aliased `TypeDef`) and
     accessors; `WinMD.Tables.Flags` has flag constants.
   - `WinMD.Signature`, `WinMD.Attribute`: blob decoders.
@@ -150,15 +151,20 @@ Update this section when a package is added or its role changes.
 ## Metadata
 
 `./scripts/fetch-metadata.sh` downloads the pinned NuGet package and extracts
-`metadata/Windows.Win32.winmd`. `metadata/` is git-ignored. The NuGet package
+`metadata/Windows.Win32.winmd` and `metadata/Microsoft.Direct3D.D3D12.winmd`.
+The second defines the `Windows.Win32.Graphics.Direct3D12` namespace, which
+types in the first (DirectML, Media Foundation) use through TypeRefs scoped
+to its assembly; `linkDatabases` makes those resolve, and `windows-bindgen`
+links every file given with `--in`. `metadata/` is git-ignored. The NuGet package
 gives the Windows SDK licence (`sdk_license.txt`, acceptance required) as its
 licence. The win32metadata repository calls the `.winmd` files MIT, but the
 package we download does not, so never commit them. To move to a new metadata
 release, change `version` and `sha256` in the script together.
 
-Tests that need the metadata take its path from the `WINMD_PATH` environment
-variable, defaulting to `metadata/Windows.Win32.winmd` relative to the
-repository root.
+Tests that need the metadata take the path of `Windows.Win32.winmd` from the
+`WINMD_PATH` environment variable, defaulting to
+`metadata/Windows.Win32.winmd` relative to the repository root, and read
+`Microsoft.Direct3D.D3D12.winmd` from the same directory.
 
 ## Building and testing
 
@@ -189,9 +195,9 @@ repository root.
   definitions, one per architecture (`findTypeDefs`, `SupportedArchitecture`);
   nested types have an empty namespace and are referenced by TypeRefs scoped
   to the enclosing TypeRef (`resolveTypeRef`).
-- Tests in `winmd/test` run against the real `Windows.Win32.winmd`. Assert
+- Tests in `winmd/test` run against the real metadata files. Assert
   concrete values checked against the Windows headers or docs, and keep the
-  test that decodes every signature, constant and attribute in the file.
+  test that decodes every signature, constant and attribute in each file.
 - Follow windows-rs (`windows-bindgen`) for questions about how metadata
   should be interpreted. Cite the ECMA-335 partition and section (e.g.
   II.22.37) in comments where the format is subtle.

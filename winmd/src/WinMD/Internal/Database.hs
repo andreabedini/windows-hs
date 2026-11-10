@@ -26,6 +26,7 @@ module WinMD.Internal.Database
   , Database (..)
   , Layout (..)
   , loadDatabase
+  , linkDatabases
   , rowCount
 
     -- * Rows
@@ -65,6 +66,7 @@ import Data.List (find)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8Lenient)
@@ -421,6 +423,10 @@ data Database = Database
   -- have several definitions. Built on first use.
   , dbNestedIndex :: IntMap [Int]
   -- ^ Nested type definitions by enclosing type. Built on first use.
+  , dbLinked :: Map (Text, Text) [Row 'TTypeDef]
+  -- ^ Top-level type definitions of this file and of the files linked with
+  -- it ('linkDatabases'), in file order and then table order. Built on
+  -- first use.
   }
 
 rowCount :: Database -> Table -> Int
@@ -467,6 +473,7 @@ loadDatabase file = do
           , dbMvid = BS.empty
           , dbTypeIndex = Map.empty
           , dbNestedIndex = IntMap.empty
+          , dbLinked = Map.empty
           }
   validate db0
   let mvid
@@ -478,7 +485,8 @@ loadDatabase file = do
           , dbTypeIndex = buildTypeIndex db0
           , dbNestedIndex = buildNestedIndex db0
           }
-  pure db
+      self = db {dbLinked = Map.map (map (Row self)) (dbTypeIndex db)}
+  pure self
   where
     testBitsAbove v = v `shiftR` (fromEnum (maxBound :: Table) + 1) /= 0
 
@@ -605,6 +613,22 @@ blobBounds heap off
       if start + len' <= BS.length heap
         then Right (start, len')
         else Left ("blob at " ++ show off ++ " extends past the end of the #Blob heap")
+
+-- | Link metadata files that refer to each other's types, such as
+-- @Windows.Win32.winmd@ and @Microsoft.Direct3D.D3D12.winmd@. A type
+-- reference scoped to another assembly resolves to the definitions of that
+-- name in any of the linked files, as windows-rs resolves names across all
+-- the files it reads. The result has one database per module: a file given
+-- twice (the same module GUID) appears once.
+linkDatabases :: [Database] -> [Database]
+linkDatabases dbs = linked
+  where
+    linked = [db {dbLinked = index} | db <- distinct Set.empty dbs]
+    index = Map.unionsWith (++) [Map.map (map (Row db)) (dbTypeIndex db) | db <- linked]
+    distinct _ [] = []
+    distinct seen (db : rest)
+      | dbMvid db `Set.member` seen = distinct seen rest
+      | otherwise = db : distinct (Set.insert (dbMvid db) seen) rest
 
 buildTypeIndex :: Database -> Map (Text, Text) [Int]
 buildTypeIndex db =
