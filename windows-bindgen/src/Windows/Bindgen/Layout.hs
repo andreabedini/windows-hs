@@ -84,7 +84,7 @@ aggregate d = do
     if explicit
       then pure [(f, maybe 0 fromIntegral (fieldOffset f), l) | (f, l) <- fields]
       else reverse . snd <$> foldM place (0, []) fields
-  let align = maximum (1 : [cap (layoutAlign l) | (_, _, l) <- placed])
+  let align = maximum (declaredAlign d : 1 : [cap (layoutAlign l) | (_, _, l) <- placed])
       end = maximum (0 : [off + layoutSize l | (_, off, l) <- placed])
       size = max classSize (roundUp align (max end (if null placed then 1 else 0)))
   pure (Layout size align, placed)
@@ -96,6 +96,26 @@ aggregate d = do
     capFor l = case typeDefClassLayout d of
       Just (p, _) | p /= 0 -> min (layoutAlign l) (fromIntegral p)
       _ -> layoutAlign l
+
+-- | The alignment a type is declared with in C, @DECLSPEC_ALIGN(n)@,
+-- when it is more than its fields need. win32metadata does not record it,
+-- so the x64 cases from winnt.h and winhvplatformdefs.h are listed here.
+-- Types containing these inherit their alignment, as CONTEXT does from
+-- M128A. Current windows-rs gets the same information from its own
+-- metadata, scraped from the headers (microsoft/windows-rs#3761).
+declaredAlign :: TypeDef -> Int
+declaredAlign d = case (typeDefNamespace d, typeDefName d) of
+  ("Windows.Win32.System.Diagnostics.Debug", "M128A") -> 16
+  ("Windows.Win32.System.Diagnostics.Debug", "XSAVE_FORMAT") -> 16
+  ("Windows.Win32.System.Diagnostics.Debug", "XSAVE_AREA") -> 16
+  ("Windows.Win32.System.Diagnostics.Debug", "CONTEXT") -> 16
+  ("Windows.Win32.System.Memory", "MEMORY_BASIC_INFORMATION64") -> 16
+  ("Windows.Win32.System.Kernel", "SLIST_ENTRY") -> 16
+  ("Windows.Win32.System.Kernel", "SLIST_HEADER") -> 16
+  ("Windows.Win32.System.Hypervisor", "WHV_UINT128") -> 16
+  ("Windows.Win32.System.Hypervisor", "WHV_X64_VMX_NESTED_STATE") -> 4096
+  ("Windows.Win32.System.Hypervisor", "WHV_X64_SVM_NESTED_STATE") -> 4096
+  _ -> 1
 
 roundUp :: Int -> Int -> Int
 roundUp a n = ((n + a - 1) `div` a) * a
