@@ -210,15 +210,22 @@ main = do
   -- Vtable slots count the methods of every ancestor: IUnknown has 3,
   -- IModalWindow 1 (Show), so IFileDialog's own methods start at 4.
   -- ID3D12DescriptorHeap derives from ID3D12Pageable (0 methods),
-  -- ID3D12DeviceChild (1) and ID3D12Object (4), so its start at 8; they
-  -- return structs, which a method returns through a hidden pointer after
-  -- this whatever their size (the MSVC member-function ABI).
+  -- ID3D12DeviceChild (1) and ID3D12Object (4), so its own start at 8.
+  -- GetCPUDescriptorHandleForHeapStart returns an 8-byte struct, which a C
+  -- function returns in RAX but a method returns through a hidden pointer
+  -- after this (the MSVC member-function ABI).
+  --
+  -- A method's FreeWith brings its free function along, as a function's
+  -- does (IBackgroundCopyJob::GetDisplayName, CoTaskMemFree), and a type
+  -- application picks the interface a Query method returns, so t comes first
+  -- (IShellItem::BindToHandler).
   test "COM interfaces and methods" $ do
     let names =
           [ "Windows.Win32.System.Com.CoCreateInstance"
           , "Windows.Win32.UI.Shell.FileOpenDialog"
           , "Windows.Win32.UI.Shell.IFileOpenDialog"
           , "Windows.Win32.Graphics.Direct3D12.ID3D12DescriptorHeap"
+          , "Windows.Win32.Networking.BackgroundIntelligentTransferService.IBackgroundCopyJob"
           ]
     pure $ case bindgen defaultConfig dbs names of
       Left es -> es
@@ -244,12 +251,14 @@ main = do
                   ]
               ++ pick ["id3D12DescriptorHeap_GetDesc", "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart"]
                 `shouldBe` sort [("id3D12DescriptorHeap_GetDesc", "8"), ("id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart", "9")]
-              ++ sigs ["coCreateInstance", "iFileDialog_SetTitle", "iFileDialog_GetResult", "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart"]
+              ++ sigs ["coCreateInstance", "iFileDialog_SetTitle", "iFileDialog_GetResult", "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart", "iShellItem_BindToHandler", "iBackgroundCopyJob_GetDisplayName"]
                 `shouldBe` sort
                   [ "coCreateInstance :: Core.Interface t => Ptr GUID -> P.Maybe IUnknown -> CLSCTX -> IO t"
                   , "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart :: Core.Inherits ID3D12DescriptorHeap this => this -> IO D3D12_CPU_DESCRIPTOR_HANDLE"
                   , "iFileDialog_GetResult :: Core.Inherits IFileDialog this => this -> IO IShellItem"
                   , "iFileDialog_SetTitle :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()"
+                  , "iShellItem_BindToHandler :: (Core.Interface t, Core.Inherits IShellItem this, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t"
+                  , "iBackgroundCopyJob_GetDisplayName :: Core.Inherits IBackgroundCopyJob this => this -> IO Core.OsString"
                   ]
               ++ [l | l <- ls, "instance Core.Inherits " `Text.isPrefixOf` l, " IFileOpenDialog" `Text.isSuffixOf` l]
                 `shouldBe` [ "instance Core.Inherits IFileOpenDialog IFileOpenDialog"
@@ -258,7 +267,9 @@ main = do
                            , "instance Core.Inherits IUnknown IFileOpenDialog"
                            ]
               ++ check ("pattern FileOpenDialog :: GUID" `elem` ls) "FileOpenDialog is not a GUID pattern"
-              ++ check (any ("Core.returnStruct" `Text.isInfixOf`) ls) "struct results are not returned through a hidden pointer"
+              ++ check
+                (any ("Core.returnStruct (\\r -> call'id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart" `Text.isInfixOf`) ls)
+                "an 8-byte struct result of a method is not returned through a hidden pointer"
 
   -- Compiling this output takes about a minute; scripts/check-win32-surface.sh
   -- does that and checks its layouts.

@@ -406,10 +406,13 @@ emitType ctx members t = do
           { declExports = [name <> " (..)"]
           , declBody =
               T.unlines $
-                doc
-                  ++ [ "-- | A union or explicit-layout struct of " <> tshow size <> " bytes. Read a member"
-                     , "-- as a field (@u.member@); build one with 'Core.setMember' and 'Core.zeroed'."
-                     , "newtype " <> name <> " = " <> name <> " (FixedArray " <> tshow size <> " Word8)"
+                commentLines
+                  ( doc
+                      ++ [ "-- | A union or explicit-layout struct of " <> tshow size <> " bytes. Read a member"
+                         , "-- as a field (@u.member@); build one with 'Core.setMember' and 'Core.zeroed'."
+                         ]
+                  )
+                  ++ [ "newtype " <> name <> " = " <> name <> " (FixedArray " <> tshow size <> " Word8)"
                      , "  deriving stock (P.Eq, P.Ord, P.Show)"
                      , ""
                      , "instance S.Storable " <> name <> " where"
@@ -694,9 +697,11 @@ emitFunction sys ctx frees name callee m = do
         | Just (iface, True) <- interfaces !! i = "P.Maybe " <> iface
         | otherwise = slotHs (params !! i)
       argTypes = ["this" | isJust this] ++ map argType hsIndices
+      -- A type application sets the first type variable of the signature,
+      -- so t comes before this: iShellItem_BindToHandler @IStream.
       constraints =
-        ["Core.Inherits " <> iface <> " this" | Just iface <- [this]]
-          ++ ["Core.Interface t" | Query {} <- [shape]]
+        ["Core.Interface t" | Query {} <- [shape]]
+          ++ ["Core.Inherits " <> iface <> " this" | Just iface <- [this]]
           ++ ["Core.Inherits " <> iface <> " " <> (interfaceVars Map.! i) | (i, Just (iface, False)) <- zip [0 ..] interfaces]
           ++ ["Core.WideString " <> v | v <- Map.elems stringVars]
       constraint = case constraints of
@@ -890,13 +895,18 @@ data Shape
   | -- | The positions of the IID parameter and of the interface pointer.
     Query Int Int
 
--- | Join a documentation link and a note on the wrapper into one Haddock
--- comment.
+-- | Join Haddock blocks (a documentation link, notes on the declaration)
+-- into one comment: the first block, a blank line, then the others as one
+-- paragraph. A line that does not start a block continues the one before.
 commentLines :: [Text] -> [Text]
 commentLines = \case
   [] -> []
-  [l] -> [l]
-  l : ls -> l : "--" : map (\x -> maybe x ("-- " <>) (T.stripPrefix "-- | " x)) ls
+  l : ls -> l : go False ls
+  where
+    go _ [] = []
+    go joined (x : xs) = case T.stripPrefix "-- | " x of
+      Just rest -> ["--" | not joined] ++ ("-- " <> rest) : go True xs
+      Nothing -> x : go joined xs
 
 -- | What the wrapper adds to the C function, for its Haddock comment.
 shapeComment :: Shape -> [Text]

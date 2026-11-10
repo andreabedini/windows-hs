@@ -161,7 +161,7 @@ data Selection = Selection
 -- match nothing are returned as errors.
 select :: [Database] -> [Text] -> Either [String] Selection
 select dbs names = case [T.unpack n | (n, []) <- matches] of
-  [] -> Right (closeOver (withFreeFunctions (withStringTypes (concatMap snd matches))))
+  [] -> Right (closeWithFreeFunctions (withStringTypes (concatMap snd matches)))
   unknown -> Left ["no type, function or constant named " ++ n | n <- unknown]
   where
     matches = [(n, lookupName n) | n <- names]
@@ -191,17 +191,27 @@ select dbs names = case [T.unpack n | (n, []) <- matches] of
            , t <- find "Windows.Win32.Foundation" n
            ]
 
-    -- A function that names the function to free one of its outputs
-    -- (FreeWith) brings that function along, so that its wrapper can free
-    -- what it returns, and so can its callers.
-    withFreeFunctions roots =
-      roots
-        ++ [ RootFunction f
-           | RootFunction m <- roots
-           , p <- methodParams m
-           , Just n <- [freeWith p]
-           , f <- Map.findWithDefault [] n functionsByName
-           ]
+    -- A function or interface method that names the function to free one
+    -- of its outputs (FreeWith) brings that function along, so that its
+    -- wrapper can free what it returns, and so can its callers. Interfaces
+    -- join the selection through the closure, so close over the roots, add
+    -- the functions the selected functions and methods name, and repeat
+    -- until there are no new ones.
+    closeWithFreeFunctions roots =
+      let sel = closeOver roots
+          methods =
+            selFunctions sel
+              ++ [m | t <- selTypes sel, classify t == KInterface, m <- typeDefMethods t]
+          new =
+            nub
+              [ f
+              | m <- methods
+              , p <- methodParams m
+              , Just n <- [freeWith p]
+              , f <- Map.findWithDefault [] n functionsByName
+              , f `notElem` selFunctions sel
+              ]
+       in if null new then sel else closeWithFreeFunctions (roots ++ map RootFunction new)
 
     functionsByName =
       Map.fromListWith

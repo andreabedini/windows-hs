@@ -2753,7 +2753,7 @@ foreign import ccall safe "dynamic"
 --
 -- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
 -- Optional: @pmkToLeft@ can be @Nothing@ (NULL).
-iMoniker_BindToObject :: (Core.Inherits IMoniker this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> P.Maybe IMoniker -> IO t
+iMoniker_BindToObject :: (Core.Interface t, Core.Inherits IMoniker this, Core.Inherits IBindCtx i1) => this -> i1 -> P.Maybe IMoniker -> IO t
 iMoniker_BindToObject (Core.upcast @IMoniker -> this) a1 a2 =
   Core.vtableEntry this 8 P.>>= \f ->
   Core.query (\riid o -> call'iMoniker_BindToObject f this (Core.upcast @IBindCtx a1) (Core.orNull a2) riid o)
@@ -2765,7 +2765,7 @@ foreign import ccall safe "dynamic"
 --
 -- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
 -- Optional: @pmkToLeft@ can be @Nothing@ (NULL).
-iMoniker_BindToStorage :: (Core.Inherits IMoniker this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> P.Maybe IMoniker -> IO t
+iMoniker_BindToStorage :: (Core.Interface t, Core.Inherits IMoniker this, Core.Inherits IBindCtx i1) => this -> i1 -> P.Maybe IMoniker -> IO t
 iMoniker_BindToStorage (Core.upcast @IMoniker -> this) a1 a2 =
   Core.vtableEntry this 9 P.>>= \f ->
   Core.query (\riid o -> call'iMoniker_BindToStorage f this (Core.upcast @IBindCtx a1) (Core.orNull a2) riid o)
@@ -3065,7 +3065,7 @@ foreign import ccall safe "dynamic"
 -- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-bindtohandler>
 --
 -- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
-iShellItem_BindToHandler :: (Core.Inherits IShellItem this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t
+iShellItem_BindToHandler :: (Core.Interface t, Core.Inherits IShellItem this, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t
 iShellItem_BindToHandler (Core.upcast @IShellItem -> this) a1 a2 =
   Core.vtableEntry this 3 P.>>= \f ->
   Core.query (\riid o -> call'iShellItem_BindToHandler f this (Core.upcast @IBindCtx a1) a2 riid o)
@@ -3120,7 +3120,7 @@ foreign import ccall safe "dynamic"
 -- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-bindtohandler>
 --
 -- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
-iShellItemArray_BindToHandler :: (Core.Inherits IShellItemArray this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t
+iShellItemArray_BindToHandler :: (Core.Interface t, Core.Inherits IShellItemArray this, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t
 iShellItemArray_BindToHandler (Core.upcast @IShellItemArray -> this) a1 a2 =
   Core.vtableEntry this 3 P.>>= \f ->
   Core.query (\riid o -> call'iShellItemArray_BindToHandler f this (Core.upcast @IBindCtx a1) a2 riid o)
@@ -3131,7 +3131,7 @@ foreign import ccall safe "dynamic"
 -- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getpropertystore>
 --
 -- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
-iShellItemArray_GetPropertyStore :: (Core.Inherits IShellItemArray this, Core.Interface t) => this -> GETPROPERTYSTOREFLAGS -> IO t
+iShellItemArray_GetPropertyStore :: (Core.Interface t, Core.Inherits IShellItemArray this) => this -> GETPROPERTYSTOREFLAGS -> IO t
 iShellItemArray_GetPropertyStore (Core.upcast @IShellItemArray -> this) a1 =
   Core.vtableEntry this 4 P.>>= \f ->
   Core.query (\riid o -> call'iShellItemArray_GetPropertyStore f this a1 riid o)
@@ -3142,7 +3142,7 @@ foreign import ccall safe "dynamic"
 -- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getpropertydescriptionlist>
 --
 -- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
-iShellItemArray_GetPropertyDescriptionList :: (Core.Inherits IShellItemArray this, Core.Interface t) => this -> Ptr PROPERTYKEY -> IO t
+iShellItemArray_GetPropertyDescriptionList :: (Core.Interface t, Core.Inherits IShellItemArray this) => this -> Ptr PROPERTYKEY -> IO t
 iShellItemArray_GetPropertyDescriptionList (Core.upcast @IShellItemArray -> this) a1 =
   Core.vtableEntry this 5 P.>>= \f ->
   Core.query (\riid o -> call'iShellItemArray_GetPropertyDescriptionList f this a1 riid o)
