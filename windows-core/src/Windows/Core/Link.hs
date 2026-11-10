@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | Resolve Win32 functions at runtime.
 --
 -- Generated bindings never link against import libraries. Each function is
@@ -26,6 +28,7 @@ data LinkError
 
 instance Exception LinkError
 
+#if defined(mingw32_HOST_OS)
 foreign import ccall unsafe "LoadLibraryExW"
   c_LoadLibraryExW :: CWString -> Ptr () -> Word32 -> IO (Ptr ())
 
@@ -34,6 +37,22 @@ foreign import ccall unsafe "GetProcAddress"
 
 foreign import ccall unsafe "GetLastError"
   c_GetLastError :: IO Word32
+#else
+-- Elsewhere the library is only compiled and loaded (by tests, GHCi and
+-- Template Haskell), so these stubs stand in for kernel32 and fail if
+-- called.
+c_LoadLibraryExW :: CWString -> Ptr () -> Word32 -> IO (Ptr ())
+c_LoadLibraryExW _ _ _ = notWindows "LoadLibraryExW"
+
+c_GetProcAddress :: Ptr () -> CString -> IO (FunPtr a)
+c_GetProcAddress _ _ = notWindows "GetProcAddress"
+
+c_GetLastError :: IO Word32
+c_GetLastError = notWindows "GetLastError"
+
+notWindows :: String -> IO a
+notWindows f = ioError (userError (f ++ ": Windows functions can only be called on Windows"))
+#endif
 
 -- | Search the application directory, System32 and directories added with
 -- @AddDllDirectory@, but not the current directory or @PATH@.

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | Windows error codes and the exception that carries them.
 --
 -- As in windows-rs, every error is an 'HRESULT'. Functions that report
@@ -41,8 +43,14 @@ check hr
   | failed hr = windowsError hr >>= throwIO
   | otherwise = pure ()
 
+#if defined(mingw32_HOST_OS)
 foreign import ccall unsafe "GetLastError"
   c_GetLastError :: IO Word32
+#else
+-- A stub elsewhere, as in "Windows.Core.Link".
+c_GetLastError :: IO Word32
+c_GetLastError = ioError (userError "GetLastError: Windows functions can only be called on Windows")
+#endif
 
 -- | The calling thread's last Win32 error code.
 getLastError :: IO Word32
