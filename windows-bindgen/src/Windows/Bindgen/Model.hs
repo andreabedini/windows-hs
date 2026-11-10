@@ -12,6 +12,7 @@ module Windows.Bindgen.Model
   , Selection (..)
   , select
   , stringConstantType
+  , coreType
   ) where
 
 import Data.Bits (testBit, (.&.))
@@ -95,6 +96,15 @@ supportsX64 :: (HasAttributes t) => Row t -> Bool
 supportsX64 r = case findAttribute "SupportedArchitectureAttribute" r of
   Just Attribute {attrArgs = [AttrEnum _ (VInt32 arch)]} -> testBit arch 1
   _ -> True
+
+-- | The name of the type windows-core provides in place of a definition,
+-- as windows-rs maps @HRESULT@ to @windows_core::HRESULT@. Generated
+-- modules re-export it instead of declaring their own, so that error codes
+-- from every module and from the runtime's own error type agree.
+coreType :: TypeDef -> Maybe Text
+coreType t = case (typeDefNamespace t, typeDefName t) of
+  ("Windows.Win32.Foundation", "HRESULT") -> Just "HRESULT"
+  _ -> Nothing
 
 -- | The non-static fields of a struct, union or enum.
 instanceFields :: TypeDef -> [Field]

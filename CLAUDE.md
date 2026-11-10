@@ -56,8 +56,11 @@ Cabal packages, one directory each, listed in `cabal.project`:
     the emitted structs.
 - `windows-core/`: runtime library that generated code imports (as
   `Windows.Core`): `resolveProc` (LoadLibraryExW/GetProcAddress with a module
-  cache), struct-by-value marshalling for the x64 ABI, `FixedArray`, `GUID`.
-  Builds on Linux; only linking a program needs Windows.
+  cache), struct-by-value marshalling for the x64 ABI, `FixedArray`, `GUID`,
+  and errors: `HRESULT`, the `WindowsError` exception, `lastError` and
+  `check`. Builds on Linux; only linking a program needs Windows. Its test
+  suite covers `Windows.Core.HRESULT`, which calls no Windows functions and
+  so links on Linux.
 - `samples/hello/`: a module generated from `bindgen-names.txt` and a small
   program using it. The library (bindings and `Hello`) builds everywhere; the
   executable only on Windows.
@@ -85,6 +88,12 @@ Update this section when a package is added or its role changes.
   `NativeEncoding("ansi")`; it points to a `NOINLINE` value allocated on
   first use by `Core.wideLiteral`/`Core.ansiLiteral`, and matching it
   compares pointers, as C does.
+- `HRESULT` comes from windows-core (`coreType` in `Model`), as in
+  windows-rs, so that error codes from any generated module and from
+  `WindowsError` are the same type. Generated modules re-export it.
+- Reading `GetLastError` after a generated call is reliable: calls are
+  `safe`, and GHC's runtime saves and restores the last error around them
+  and across thread switches (`rts/Schedule.c`).
 - Unions and explicit-layout structs are opaque byte arrays for now.
 - Struct records use `DuplicateRecordFields` and `NoFieldSelectors`; users
   read fields with `OverloadedRecordDot`.

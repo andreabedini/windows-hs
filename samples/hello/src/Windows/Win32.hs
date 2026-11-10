@@ -141,6 +141,7 @@ module Windows.Win32
   , pattern HKEY_LOCAL_MACHINE
   , pattern IDC_ARROW
   , pattern INIT_ONCE_STATIC_INIT
+  , pattern INVALID_FILE_ATTRIBUTES
   , pattern MAX_PATH
   , pattern PKEY_Title
   , pattern SECURITY_NT_AUTHORITY
@@ -149,6 +150,7 @@ module Windows.Win32
   , pattern WC_BUTTONW
   , coCreateInstance
   , coTaskMemFree
+  , getFileAttributesW
   , getSystemInfo
   , getTickCount
   , getVersionExW
@@ -171,7 +173,7 @@ import Foreign.Storable qualified as S
 import Prelude (Double, Float, IO)
 import Prelude qualified as P
 import System.IO.Unsafe qualified as U
-import Windows.Core (FixedArray (..), GUID (..))
+import Windows.Core (FixedArray (..), GUID (..), HRESULT (..))
 import Windows.Core qualified as Core
 
 newtype BOOL = BOOL Int32
@@ -300,11 +302,6 @@ newtype HINSTANCE = HINSTANCE (Ptr ())
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
 newtype HKEY = HKEY (Ptr ())
-  deriving stock (P.Show)
-  deriving newtype (P.Eq, P.Ord, S.Storable)
-
--- | <https://learn.microsoft.com/office/client-developer/outlook/mapi/hresult>
-newtype HRESULT = HRESULT Int32
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
@@ -698,6 +695,9 @@ pattern IDC_ARROW <- PWSTR (F.ptrToIntPtr -> 32512)
 pattern INIT_ONCE_STATIC_INIT :: INIT_ONCE
 pattern INIT_ONCE_STATIC_INIT = INIT_ONCE (FixedArray [0, 0, 0, 0, 0, 0, 0, 0])
 
+pattern INVALID_FILE_ATTRIBUTES :: Word32
+pattern INVALID_FILE_ATTRIBUTES = 4294967295
+
 pattern MAX_PATH :: Word32
 pattern MAX_PATH = 260
 
@@ -747,6 +747,18 @@ proc'coTaskMemFree = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoTaskMemF
 
 foreign import ccall safe "dynamic"
   call'coTaskMemFree :: FunPtr (Ptr () -> IO ()) -> Ptr () -> IO ()
+
+-- | <https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfileattributesw>
+getFileAttributesW :: PWSTR -> IO Word32
+getFileAttributesW a1 =
+  call'getFileAttributesW proc'getFileAttributesW a1
+
+proc'getFileAttributesW :: FunPtr (PWSTR -> IO Word32)
+proc'getFileAttributesW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "GetFileAttributesW")
+{-# NOINLINE proc'getFileAttributesW #-}
+
+foreign import ccall safe "dynamic"
+  call'getFileAttributesW :: FunPtr (PWSTR -> IO Word32) -> PWSTR -> IO Word32
 
 -- | <https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsysteminfo>
 getSystemInfo :: Ptr SYSTEM_INFO -> IO ()

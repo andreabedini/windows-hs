@@ -140,6 +140,7 @@ reservedTypes =
     , "Float"
     , "FunPtr"
     , "GUID"
+    , "HRESULT"
     , "IO"
     , "Int16"
     , "Int32"
@@ -158,8 +159,12 @@ reservedTypes =
 -- enclosing type and its position in it, as windows-rs does
 -- (@SYSTEM_INFO_0@).
 typeNames :: [TypeDef] -> Map TypeDef Text
-typeNames ts = Map.fromList (zip ts (dedupe reservedTypes (map rawName ts)))
+typeNames ts =
+  Map.fromList $
+    [(t, n) | t <- ts, Just n <- [coreType t]]
+      ++ zip generated (dedupe reservedTypes (map rawName generated))
   where
+    generated = [t | t <- ts, Nothing <- [coreType t]]
     rawName t = case typeDefEnclosingType t of
       Just e ->
         let ix = length (takeWhile (/= t) (typeDefNestedTypes e))
@@ -224,6 +229,7 @@ emitType ctx members t = do
   name <- typeName ctx t
   let doc = docComment t
   case classify t of
+    _ | Just _ <- coreType t -> Right Decl {declExports = [name <> " (..)"], declBody = ""}
     KEnum -> do
       base <- case instanceFields t of
         [f] -> hsType ctx (fieldType f)
@@ -775,10 +781,10 @@ render cfg decls =
          , "import Prelude (Double, Float, IO)"
          , "import Prelude qualified as P"
          , "import System.IO.Unsafe qualified as U"
-         , "import Windows.Core (FixedArray (..), GUID (..))"
+         , "import Windows.Core (FixedArray (..), GUID (..), HRESULT (..))"
          , "import Windows.Core qualified as Core"
          ]
-      ++ concatMap (\d -> ["", T.stripEnd (declBody d)]) decls
+      ++ concat [["", T.stripEnd (declBody d)] | d <- decls, not (T.null (declBody d))]
   where
     exportList [] = ["  () where"]
     exportList (e : es) = ("  ( " <> e) : map ("  , " <>) es ++ ["  ) where"]

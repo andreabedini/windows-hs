@@ -10,6 +10,7 @@ import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Utils (with)
 import Foreign.Ptr (castPtr, nullPtr)
 import Foreign.Storable (peek)
+import Windows.Core (lastError)
 import Windows.Win32
 
 -- | Print some system information. With 'True', also show a message box.
@@ -26,6 +27,7 @@ hello gui = do
   putStrLn ("Window at (0, 0): " ++ show window)
 
   constants
+  errors
 
   when gui $ do
     answer <-
@@ -63,3 +65,11 @@ constants = do
         HKEY_LOCAL_MACHINE -> "HKEY_LOCAL_MACHINE"
         _ -> "another key"
   putStrLn ("HKEY_LOCAL_MACHINE matches itself: " ++ describe HKEY_LOCAL_MACHINE)
+
+-- | Read the error a failed call left in @GetLastError@.
+errors :: IO ()
+errors = do
+  attributes <- withCWString "C:\\no\\such\\file" (getFileAttributesW . PWSTR . castPtr)
+  if attributes == INVALID_FILE_ATTRIBUTES
+    then lastError >>= \e -> putStrLn ("GetFileAttributesW failed: " ++ show e)
+    else putStrLn "GetFileAttributesW found C:\\no\\such\\file"

@@ -46,3 +46,7 @@ Windows.Win32.Globalization.lstrlenW
 Windows.Win32.Globalization.lstrlenA
 Windows.Win32.UI.Shell.SHGetKnownFolderPath
 Windows.Win32.System.Com.CoTaskMemFree
+
+# A function that reports failure through GetLastError
+Windows.Win32.Storage.FileSystem.GetFileAttributesW
+Windows.Win32.Storage.FileSystem.INVALID_FILE_ATTRIBUTES
