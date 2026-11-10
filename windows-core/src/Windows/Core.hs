@@ -8,6 +8,7 @@ module Windows.Core
   , module Windows.Core.Literal
   , module Windows.Core.Marshal
   , module Windows.Core.Member
+  , module Windows.Core.WideString
   ) where
 
 import Windows.Core.Error
@@ -17,3 +18,4 @@ import Windows.Core.Link
 import Windows.Core.Literal
 import Windows.Core.Marshal
 import Windows.Core.Member
+import Windows.Core.WideString

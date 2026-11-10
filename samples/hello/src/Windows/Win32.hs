@@ -622,6 +622,9 @@ newtype PWSTR = PWSTR (Ptr Word16)
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
+instance Core.WideString PWSTR where
+  withWideString (PWSTR p) k = k p
+
 -- | <https://learn.microsoft.com/windows/win32/NetMgmt/odj-sid_identifier_authority>
 data SID_IDENTIFIER_AUTHORITY = SID_IDENTIFIER_AUTHORITY
   { value :: !(FixedArray 6 Word8)
@@ -873,9 +876,10 @@ foreign import ccall safe "dynamic"
   call'coTaskMemFree :: FunPtr (Ptr () -> IO ()) -> Ptr () -> IO ()
 
 -- | <https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfileattributesw>
-getFileAttributesW :: PWSTR -> IO Word32
+getFileAttributesW :: Core.WideString s1 => s1 -> IO Word32
 getFileAttributesW a1 =
-  call'getFileAttributesW proc'getFileAttributesW a1
+  Core.withWideString a1 P.$ \a1' ->
+  call'getFileAttributesW proc'getFileAttributesW (PWSTR a1')
 
 proc'getFileAttributesW :: FunPtr (PWSTR -> IO Word32)
 proc'getFileAttributesW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "GetFileAttributesW")
@@ -925,9 +929,10 @@ foreign import ccall safe "dynamic"
 -- | <https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-loadcursorw>
 --
 -- Throws 'Core.WindowsError' from @GetLastError@ if the handle is invalid.
-loadCursorW :: HINSTANCE -> PWSTR -> IO HCURSOR
+loadCursorW :: Core.WideString s1 => HINSTANCE -> s1 -> IO HCURSOR
 loadCursorW a1 a2 =
-  call'loadCursorW proc'loadCursorW a1 a2 P.>>= \h@(HCURSOR v) -> if P.elem (F.ptrToIntPtr v) [P.fromInteger (-1), P.fromInteger (0)] then Core.throwLastError else P.pure h
+  Core.withWideString a2 P.$ \a2' ->
+  call'loadCursorW proc'loadCursorW a1 (PWSTR a2') P.>>= \h@(HCURSOR v) -> if P.elem (F.ptrToIntPtr v) [P.fromInteger (-1), P.fromInteger (0)] then Core.throwLastError else P.pure h
 
 proc'loadCursorW :: FunPtr (HINSTANCE -> PWSTR -> IO HCURSOR)
 proc'loadCursorW = U.unsafePerformIO (Core.resolveProc "USER32.dll" "LoadCursorW")
@@ -937,9 +942,13 @@ foreign import ccall safe "dynamic"
   call'loadCursorW :: FunPtr (HINSTANCE -> PWSTR -> IO HCURSOR) -> HINSTANCE -> PWSTR -> IO HCURSOR
 
 -- | <https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-messageboxw>
-messageBoxW :: HWND -> PWSTR -> PWSTR -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT
+--
+-- Optional: @lpText@, @lpCaption@ can be @Nothing@ (NULL).
+messageBoxW :: (Core.WideString s1, Core.WideString s2) => HWND -> s1 -> s2 -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT
 messageBoxW a1 a2 a3 a4 =
-  call'messageBoxW proc'messageBoxW a1 a2 a3 a4
+  Core.withWideString a2 P.$ \a2' ->
+  Core.withWideString a3 P.$ \a3' ->
+  call'messageBoxW proc'messageBoxW a1 (PWSTR a2') (PWSTR a3') a4
 
 proc'messageBoxW :: FunPtr (HWND -> PWSTR -> PWSTR -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT)
 proc'messageBoxW = U.unsafePerformIO (Core.resolveProc "USER32.dll" "MessageBoxW")
@@ -1000,9 +1009,10 @@ foreign import ccall safe "dynamic"
   call'lstrlenA :: FunPtr (PSTR -> IO Int32) -> PSTR -> IO Int32
 
 -- | <https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-lstrlenw>
-lstrlenW :: PWSTR -> IO Int32
+lstrlenW :: Core.WideString s1 => s1 -> IO Int32
 lstrlenW a1 =
-  call'lstrlenW proc'lstrlenW a1
+  Core.withWideString a1 P.$ \a1' ->
+  call'lstrlenW proc'lstrlenW (PWSTR a1')
 
 proc'lstrlenW :: FunPtr (PWSTR -> IO Int32)
 proc'lstrlenW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "lstrlenW")

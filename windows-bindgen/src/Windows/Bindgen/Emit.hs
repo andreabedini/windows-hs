@@ -25,7 +25,7 @@ module Windows.Bindgen.Emit
 
 import Control.Monad (unless, when)
 import Data.Either (partitionEithers)
-import Data.List (sortOn)
+import Data.List (find, sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -277,6 +277,16 @@ emitType ctx members t = do
                      , "  deriving stock (P.Show)"
                      , "  deriving newtype (P.Eq, P.Ord, S.Storable)"
                      ]
+                  -- String parameters also take a PWSTR: string constants,
+                  -- resources given by number (IDC_ARROW), raw pointers.
+                  ++ [ l
+                     | (typeDefNamespace t, typeDefName t) == ("Windows.Win32.Foundation", "PWSTR")
+                     , l <-
+                        [ ""
+                        , "instance Core.WideString " <> name <> " where"
+                        , "  withWideString (" <> name <> " p) k = k p"
+                        ]
+                     ]
           }
     KStruct -> do
       Layout size align <- defLayout t
@@ -453,6 +463,7 @@ emitFunction sys ctx name m = do
   ret <- slot ctx (sigReturnType sig)
   ffiType <- ffiFunctionType ctx sig
   shape <- if sys then Right Raw else functionShape ctx m im sig
+  strings <- if sys then Right (map (const Nothing) params) else mapM (wideParam ctx m) (zip [1 ..] (sigParams sig))
   let procName = "proc'" <> name
       callName = "call'" <> name
       args = ["a" <> tshow i | i <- [1 .. length params]]
@@ -460,8 +471,13 @@ emitFunction sys ctx name m = do
       (hsArgs, outArg) = case shape of
         ReturnOut {} -> (init args, ["o"])
         _ -> (args, [])
-      argIn a s = if slotConv s == Plain then a else a <> "'"
-      callArgs = ["r" | slotConv ret == ByRef] ++ zipWith argIn (hsArgs ++ outArg) params
+      -- String parameters are type variables, s1, s2, ...
+      stringVars = Map.fromList (zip [i | (i, Just _) <- zip [0 :: Int ..] strings] ["s" <> tshow k | k <- [1 :: Int ..]])
+      argIn a s str
+        | Just (con, _) <- str = "(" <> con <> " " <> a <> "')"
+        | slotConv s == Plain = a
+        | otherwise = a <> "'"
+      callArgs = ["r" | slotConv ret == ByRef] ++ zipWith3 argIn (hsArgs ++ outArg) params strings
       call = T.unwords (callName : procName : callArgs)
       result = case slotConv ret of
         Plain -> call
@@ -474,20 +490,29 @@ emitFunction sys ctx name m = do
         CheckHandle con invalid -> result <> " P.>>= \\h@(" <> con <> " v) -> if " <> invalid "v" <> " then Core.throwLastError else P.pure h"
         ReturnOut hr _ ->
           "M.alloca P.$ \\o -> " <> result <> (if hr then " P.>>= Core.check" else "") <> " P.>> S.peek o"
-      wrappers =
-        [ case slotConv s of
-            AsWord -> "Core.structToWord " <> a <> " P.>>= \\" <> a <> "' ->"
-            _ -> "Core.withStructCopy " <> a <> " P.$ \\" <> a <> "' ->"
-        | (a, s) <- zip hsArgs params
-        , slotConv s /= Plain
-        ]
+      wrappers = [w | (a, s, str) <- zip3 hsArgs params strings, Just w <- [wrapper a (slotConv s) str]]
+      wrapper a conv str = case (str, conv) of
+        (Just _, _) -> Just ("Core.withWideString " <> a <> " P.$ \\" <> a <> "' ->")
+        (_, AsWord) -> Just ("Core.structToWord " <> a <> " P.>>= \\" <> a <> "' ->")
+        (_, ByRef) -> Just ("Core.withStructCopy " <> a <> " P.$ \\" <> a <> "' ->")
+        (_, Plain) -> Nothing
       hsResult = case shape of
         Raw -> slotHs ret
         CheckHResult -> "()"
         CheckBool _ -> "()"
         CheckHandle {} -> slotHs ret
         ReturnOut _ t -> t
-      hsSig = T.intercalate " -> " (map slotHs (take (length hsArgs) params) ++ ["IO " <> atom hsResult])
+      argTypes = [Map.findWithDefault (slotHs s) i stringVars | (i, s) <- zip [0 ..] (take (length hsArgs) params)]
+      constraint = case Map.elems stringVars of
+        [] -> ""
+        [v] -> "Core.WideString " <> v <> " => "
+        vs -> "(" <> T.intercalate ", " ["Core.WideString " <> v | v <- vs] <> ") => "
+      hsSig = constraint <> T.intercalate " -> " (argTypes ++ ["IO " <> atom hsResult])
+      optionalStrings = [n | Just (_, Just n) <- strings]
+      stringComment =
+        [ "-- | Optional: " <> T.intercalate ", " ["@" <> n <> "@" | n <- optionalStrings] <> " can be @Nothing@ (NULL)."
+        | not (null optionalStrings)
+        ]
       dll = moduleRefName (implMapScope im)
       entry = implMapImportName im
   unless (T.all (\c -> c /= '"' && c /= '\\') (dll <> entry)) $ Left "unexpected characters in DLL or entry point name"
@@ -496,7 +521,7 @@ emitFunction sys ctx name m = do
       { declExports = [name]
       , declBody =
           T.unlines $
-            commentLines (docComment m ++ shapeComment shape)
+            commentLines (docComment m ++ shapeComment shape ++ stringComment)
               ++ [ name <> " :: " <> hsSig
                  , T.unwords (name : hsArgs) <> " ="
                  ]
@@ -510,6 +535,24 @@ emitFunction sys ctx name m = do
                  , "  " <> callName <> " :: FunPtr (" <> ffiType <> ") -> " <> ffiType
                  ]
       }
+
+-- | A string the function only reads: an @[In] [Const] PWSTR@ parameter that
+-- is NUL-terminated (not counted by another parameter, not a list of
+-- strings). The wrapper takes it as any 'Windows.Core.WideString'. Gives
+-- the constructor of @PWSTR@, and the parameter's name if it is optional.
+wideParam :: Ctx -> MethodDef -> (Int, Type) -> Either String (Maybe (Text, Maybe Text))
+wideParam ctx m (i, ty) = case (strip ty, find ((== i) . fromIntegral . paramSequence) (methodParams m)) of
+  (TValueType r, Just p)
+    | Right (TargetDef d) <- resolveTarget r
+    , (typeDefNamespace d, typeDefName d) == ("Windows.Win32.Foundation", "PWSTR")
+    , let fl = paramFlags p
+    , hasFlag paramIn fl
+    , not (hasFlag paramOut fl)
+    , hasAttribute "ConstAttribute" p
+    , not (any (`hasAttribute` p) ["NativeArrayInfoAttribute", "MemorySizeAttribute", "NotNullTerminatedAttribute", "NullNullTerminatedAttribute"]) -> do
+        con <- typeName ctx d
+        Right (Just (con, if hasFlag paramOptional fl then Just (paramName p) else Nothing))
+  _ -> Right Nothing
 
 -- | What a function's wrapper does with its result. The rules are those of
 -- windows-rs 0.58, the last release generated from win32metadata

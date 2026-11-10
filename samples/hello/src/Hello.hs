@@ -1,16 +1,18 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 -- | Calls a few Windows functions through the generated bindings.
 module Hello (hello) where
 
 import Control.Exception (try)
 import Control.Monad (when)
-import Foreign.C.String (peekCWString, withCWString)
+import Foreign.C.String (peekCWString)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Utils (with)
 import Foreign.Ptr (castPtr, nullPtr)
 import Foreign.Storable (peek)
+import System.OsString (osstr)
 import Windows.Core (WindowsError, lastError)
 import Windows.Win32
 
@@ -33,19 +35,22 @@ hello gui = do
   errors
 
   when gui $ do
-    answer <-
-      withCWString "Hello from Haskell!" $ \text ->
-        withCWString "windows-hs" $ \caption ->
-          messageBoxW (HWND nullPtr) (PWSTR (castPtr text)) (PWSTR (castPtr caption)) MB_OKCANCEL
+    -- String parameters take an OsString (or an OsPath); the caption is
+    -- optional, so it is a Maybe.
+    answer <- messageBoxW (HWND nullPtr) [osstr|Hello from Haskell!|] (Just [osstr|windows-hs|]) MB_OKCANCEL
     putStrLn (if answer == IDOK then "You pressed OK." else "You pressed Cancel.")
 
 -- | Use constants that are strings, GUIDs and pointers given as integers.
 constants :: IO ()
 constants = do
-  -- String constants point to NUL-terminated strings.
+  -- String constants point to NUL-terminated strings, and can be passed
+  -- where a function takes a string.
   wide <- lstrlenW WC_BUTTONW
   ansi <- lstrlenA DD_BEEP_DEVICE_NAME
   putStrLn ("lstrlenW WC_BUTTONW: " ++ show wide ++ ", lstrlenA DD_BEEP_DEVICE_NAME: " ++ show ansi)
+  -- lstrlenW counts UTF-16 units: the clef, outside the BMP, takes two.
+  literal <- lstrlenW [osstr|héllo 𝄞|]
+  putStrLn ("lstrlenW of 7 characters ending in U+1D11E: " ++ show literal)
 
   -- IDC_ARROW is the integer 32512 passed where a string is expected.
   HCURSOR cursor <- loadCursorW (HINSTANCE nullPtr) IDC_ARROW
@@ -73,7 +78,7 @@ errors = do
   putStrLn ("CloseHandle of a null handle: " ++ either (\e -> show (e :: WindowsError)) (const "closed") closed)
 
   -- GetFileAttributesW returns a number, which the caller checks.
-  attributes <- withCWString "C:\\no\\such\\file" (getFileAttributesW . PWSTR . castPtr)
+  attributes <- getFileAttributesW [osstr|C:\no\such\file|]
   if attributes == INVALID_FILE_ATTRIBUTES
     then lastError >>= \e -> putStrLn ("GetFileAttributesW failed: " ++ show e)
     else putStrLn "GetFileAttributesW found C:\\no\\such\\file"

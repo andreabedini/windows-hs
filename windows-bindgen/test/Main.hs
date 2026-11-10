@@ -127,9 +127,7 @@ main = do
           , "Windows.Win32.Storage.FileSystem.GetFileAttributesW" -- a number, kept
           , "Windows.Win32.Foundation.LocalFree" -- a handle, but excluded
           ]
-        signatures cfg = case bindgen cfg db fns of
-          Left es -> Left es
-          Right out -> Right [l | l <- Text.lines (outModule out), Just (c, _) <- [Text.uncons l], isAsciiLower c, not ("pattern " `Text.isPrefixOf` l), " :: " `Text.isInfixOf` l, not ("'" `Text.isInfixOf` l)]
+        signatures cfg = signaturesOf db cfg fns
     pure $
       signatures defaultConfig
         `shouldBe` Right
@@ -137,8 +135,8 @@ main = do
           , "coCreateGuid :: IO GUID"
           , "coInitializeEx :: Ptr () -> Word32 -> IO HRESULT"
           , "coResumeClassObjects :: IO ()"
-          , "createFileW :: PWSTR -> Word32 -> FILE_SHARE_MODE -> Ptr SECURITY_ATTRIBUTES -> FILE_CREATION_DISPOSITION -> FILE_FLAGS_AND_ATTRIBUTES -> HANDLE -> IO HANDLE"
-          , "getFileAttributesW :: PWSTR -> IO Word32"
+          , "createFileW :: Core.WideString s1 => s1 -> Word32 -> FILE_SHARE_MODE -> Ptr SECURITY_ATTRIBUTES -> FILE_CREATION_DISPOSITION -> FILE_FLAGS_AND_ATTRIBUTES -> HANDLE -> IO HANDLE"
+          , "getFileAttributesW :: Core.WideString s1 => s1 -> IO Word32"
           , "getSystemTimeAsFileTime :: IO FILETIME"
           , "localFree :: HLOCAL -> IO HLOCAL"
           , "regCloseKey :: HKEY -> IO WIN32_ERROR"
@@ -146,6 +144,25 @@ main = do
           ]
         ++ ( (filter (`elem` ["closeHandle :: HANDLE -> IO BOOL", "getSystemTimeAsFileTime :: Ptr FILETIME -> IO ()"]) <$> signatures defaultConfig {cfgSys = True})
                `shouldBe` Right ["closeHandle :: HANDLE -> IO BOOL", "getSystemTimeAsFileTime :: Ptr FILETIME -> IO ()"]
+           )
+
+  -- Read-only, NUL-terminated wide strings take any Core.WideString
+  -- (OsString, PWSTR, Maybe OsString); counted and ANSI strings stay raw.
+  test "string parameters take a WideString" $ do
+    let fns =
+          [ "Windows.Win32.UI.WindowsAndMessaging.MessageBoxW" -- two optional strings
+          , "Windows.Win32.Globalization.GetStringTypeW" -- counted by another parameter
+          , "Windows.Win32.Storage.FileSystem.CreateFileA" -- ANSI
+          ]
+    pure $
+      signaturesOf db defaultConfig fns
+        `shouldBe` Right
+          [ "createFileA :: PSTR -> Word32 -> FILE_SHARE_MODE -> Ptr SECURITY_ATTRIBUTES -> FILE_CREATION_DISPOSITION -> FILE_FLAGS_AND_ATTRIBUTES -> HANDLE -> IO HANDLE"
+          , "getStringTypeW :: Word32 -> PWSTR -> Int32 -> Ptr Word16 -> IO ()"
+          , "messageBoxW :: (Core.WideString s1, Core.WideString s2) => HWND -> s1 -> s2 -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT"
+          ]
+        ++ ( (filter ("messageBoxW" `Text.isPrefixOf`) <$> signaturesOf db defaultConfig {cfgSys = True} fns)
+               `shouldBe` Right ["messageBoxW :: HWND -> PWSTR -> PWSTR -> MESSAGEBOX_STYLE -> IO MESSAGEBOX_RESULT"]
            )
 
   -- Compiling this output takes about a minute; scripts/check-win32-surface.sh
@@ -160,6 +177,12 @@ main = do
   when (n > 0) $ do
     putStrLn (show n ++ " test(s) failed")
     exitFailure
+
+-- | The type signatures of the generated functions.
+signaturesOf :: Database -> Config -> [Text.Text] -> Either [String] [Text.Text]
+signaturesOf db cfg fns = case bindgen cfg db fns of
+  Left es -> Left es
+  Right out -> Right [l | l <- Text.lines (outModule out), Just (c, _) <- [Text.uncons l], isAsciiLower c, not ("pattern " `Text.isPrefixOf` l), " :: " `Text.isInfixOf` l, not ("'" `Text.isInfixOf` l)]
 
 generateSample :: Database -> IO (Either [String] Output)
 generateSample db = do

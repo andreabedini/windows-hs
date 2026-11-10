@@ -86,6 +86,20 @@ handle and setting the last error, throws `Windows.Core.WindowsError` when
 it fails, and a trailing output parameter is returned instead of passed. With
 `--sys`, every function keeps its C signature instead, like windows-sys.
 
+String parameters that a function only reads take an `OsString` from
+[`os-string`](https://hackage.haskell.org/package/os-string), so an `OsPath`
+passes straight through, and on Windows an `OsString` already holds the
+UTF-16 the W functions expect, including names that are not valid Unicode.
+Write literals as `[osstr|...|]`. Optional ones also take `Nothing`, and all
+of them take the module's `PWSTR`, for string constants and resources given
+by number such as `IDC_ARROW`:
+
+```haskell
+attributes <- getFileAttributesW path               -- path :: OsPath
+cursor <- loadCursorW (HINSTANCE nullPtr) IDC_ARROW
+answer <- messageBoxW (HWND nullPtr) [osstr|Hello|] Nothing MB_OK
+```
+
 ### Naming what to generate
 
 Each name is a win32metadata namespace followed by the item's name:

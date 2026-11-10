@@ -58,9 +58,13 @@ Cabal packages, one directory each, listed in `cabal.project`:
   `Windows.Core`): `resolveProc` (LoadLibraryExW/GetProcAddress with a module
   cache), struct-by-value marshalling for the x64 ABI, `FixedArray`, `GUID`,
   errors (`HRESULT`, the `WindowsError` exception, `lastError`, `check`),
-  and union members (`Member`, `getMember`, `setMember`, `zeroed`). Builds on Linux; only linking a program needs Windows. Its test
-  suite covers the modules that call no Windows functions
-  (`Windows.Core.HRESULT`, `Windows.Core.Member`), which link on Linux.
+  union members (`Member`, `getMember`, `setMember`, `zeroed`), and string
+  parameters (`WideString`, with `OsString` and `Maybe OsString` instances;
+  depends on `os-string`). Its few static kernel32 imports are stubs that
+  throw on other systems, so the library builds, links and loads on Linux
+  (tests, GHCi, Template Haskell such as `[osstr|...|]`); only calling
+  Windows needs Windows. Its test suite covers the parts that call no
+  Windows functions (`HRESULT`, `Member`, `WideString`).
 - `samples/hello/`: a module generated from `bindgen-names.txt` and a small
   program using it. The library (bindings and `Hello`) builds everywhere; the
   executable only on Windows.
@@ -86,6 +90,14 @@ Update this section when a package is added or its role changes.
   else keep their C result. `--sys` (`cfgSys`) keeps every C signature, like
   windows-sys. Current windows-rs reads its own metadata, so check rules
   against 0.58 (`crates/libs/bindgen/src/metadata.rs`, `rust/functions.rs`).
+- String parameters (`[In] [Const] PWSTR`, NUL-terminated: not
+  `NativeArrayInfo`, `MemorySize`, `NotNullTerminated` or
+  `NullNullTerminated`) take any `Core.WideString s => s`: an `OsString`
+  or `OsPath`, `Maybe OsString` (`Nothing` is NULL) where optional, or the
+  module's `PWSTR`, which keeps string constants and `MAKEINTRESOURCE`
+  values (`IDC_ARROW`) usable; the metadata does not mark which parameters
+  accept those. Generated modules define `instance Core.WideString PWSTR`.
+  `PSTR` (ANSI, code-page dependent) stays raw. Not under `--sys`.
 - Structs passed or returned by value follow the x64 rule: 1, 2, 4 or 8 bytes
   as an integer, otherwise by pointer (`Windows.Core.Marshal`).
 - Constants are pattern synonyms of every kind windows-sys has: numbers,

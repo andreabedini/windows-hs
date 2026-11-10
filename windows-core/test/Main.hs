@@ -5,11 +5,15 @@ module Main (main) where
 
 import Control.Monad (unless)
 import Data.Word (Word16, Word32, Word64, Word8)
+import Foreign.Marshal.Array (peekArray0)
+import Foreign.Ptr (nullPtr)
 import Foreign.Storable (Storable (..))
 import System.Exit (exitFailure)
+import System.OsString (OsString, unsafeEncodeUtf)
 import Windows.Core.FixedArray
 import Windows.Core.HRESULT
 import Windows.Core.Member
+import Windows.Core.WideString
 
 -- | A union of a 64-bit integer with two 32-bit halves, as generated
 -- bindings declare one.
@@ -29,6 +33,11 @@ instance Member "third" U Word16 where memberOffset = 4
 
 main :: IO ()
 main = do
+  -- A character outside the BMP becomes a surrogate pair.
+  units <- withWideString (unsafeEncodeUtf "a\233\x1D11E") (peekArray0 0)
+  isNull <- withWideString (Nothing :: Maybe OsString) (pure . (== nullPtr))
+  -- A bare Nothing has a type: no annotation needed.
+  bareNull <- withWideString Nothing (pure . (== nullPtr))
   let failures =
         concat
           [ -- Values from winerror.h: E_ACCESSDENIED is
@@ -47,6 +56,8 @@ main = do
           , getMember @"third" (setMember @"whole" 0x0001000200030004 u0) `shouldBe` 2
           , -- Setting a member leaves the other bytes alone.
             getMember @"low" (setMember @"third" 0xffff (setMember @"whole" 0x0001000200030004 u0)) `shouldBe` 0x00030004
+          , units `shouldBe` ([0x61, 0xE9, 0xD834, 0xDD1E] :: [Word16])
+          , [isNull, bareNull] `shouldBe` [True, True]
           ]
   mapM_ putStrLn failures
   unless (null failures) exitFailure
