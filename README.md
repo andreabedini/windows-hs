@@ -1,5 +1,7 @@
 # windows-hs
 
+[![CI](https://github.com/andreabedini/windows-hs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/andreabedini/windows-hs/actions/workflows/ci.yml)
+
 Native Windows support for Haskell, generated from the same API description
 Microsoft uses for its own language projections.
 
