@@ -9,10 +9,22 @@ description:
   passed to and returned from Windows, and Windows error codes.
 
 category:        System, Windows
+license:         MIT OR Apache-2.0
+license-files:
+  LICENSE-MIT
+  LICENSE-APACHE
 author:          Andrea Bedini
 maintainer:      andrea@andreabedini.com
+homepage:        https://github.com/andreabedini/windows-hs
+bug-reports:     https://github.com/andreabedini/windows-hs/issues
 build-type:      Simple
+extra-doc-files: CHANGELOG.md
 tested-with:     GHC ==9.12.2
+
+source-repository head
+  type:     git
+  location: https://github.com/andreabedini/windows-hs.git
+  subdir:   windows-core
 
 common warnings
   ghc-options:
