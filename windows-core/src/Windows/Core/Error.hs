@@ -3,7 +3,7 @@
 -- | Windows error codes and the exception that carries them.
 --
 -- As in windows-rs, every error is an 'HRESULT'. Functions that report
--- failure through @GetLastError@ return a Win32 error code, which
+-- failure through @GetLastError@ leave a Win32 error code there, which
 -- 'hresultFromWin32' turns into one.
 --
 -- Reading @GetLastError@ from Haskell after a generated function returns is

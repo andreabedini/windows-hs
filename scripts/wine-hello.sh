@@ -6,7 +6,8 @@
 # GHC_DIR is an unpacked Windows GHC binary distribution (the directory
 # containing bin/ghc.exe), e.g. from
 # https://downloads.haskell.org/~ghc/9.12.2/ghc-9.12.2-x86_64-unknown-mingw32.tar.xz
-# ARGs are passed to hello.exe; use --no-gui to skip the message box.
+# ARGs are passed to hello.exe; use --no-gui to skip the file dialog and
+# the message box.
 #
 # The wine prefix defaults to dist-wine/prefix in the repository; set
 # WINEPREFIX to use another one.

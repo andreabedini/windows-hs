@@ -53,8 +53,9 @@ Cabal packages, one directory each, listed in `cabal.project`:
   - `Windows.Bindgen.Emit`: writes the module. A type that cannot be emitted
     is dropped together with everything that refers to it, and reported as
     a warning, so the output always compiles.
-  - `Windows.Bindgen.cLayoutChecks`: C `_Static_assert`s for the layouts of
-    the emitted structs.
+  - `Windows.Bindgen`: `bindgen` (select, then emit), `parseNames`, and
+    `cLayoutChecks`, C `_Static_assert`s for the layouts of the emitted
+    structs.
 - `windows-core/`: runtime library that generated code imports (as
   `Windows.Core`): `resolveProc` (LoadLibraryExW/GetProcAddress with a module
   cache), struct-by-value marshalling for the x64 ABI, `FixedArray`, `GUID`,
@@ -64,7 +65,7 @@ Cabal packages, one directory each, listed in `cabal.project`:
   parameters; `withWideBuffer`, `peekWideBuffer` and `takeWideString` for
   strings Windows writes; depends on `os-string`), and COM
   (`Windows.Core.Com`: the `Interface` and `Inherits` classes, `upcast`,
-  `vtableEntry`, and `IUnknown` with `cast`, `addRef`, `release`, `withCom`
+  `orNull`, `isNull`, `vtableEntry`, and `IUnknown` with `cast`, `addRef`, `release`, `withCom`
   and `query`). Its few static kernel32
   imports are stubs that throw on other systems, so the library builds,
   links and loads on Linux
@@ -84,7 +85,8 @@ Update this section when a package is added or its role changes.
 
 - One module per run, containing the requested items and their dependency
   closure. Generated code uses only qualified imports for functions
-  (`P.`, `S.`, `F.`, `U.`, `Core.`) so Win32 names cannot clash with them.
+  (`P.`, `B.`, `F.`, `M.`, `R.`, `S.`, `U.`, `Core.`) so Win32 names cannot
+  clash with them.
 - Functions: `proc'name` holds the resolved pointer (a NOINLINE CAF),
   `call'name` is the `dynamic` import, `name` is the exported wrapper. Calls
   are `safe`.
@@ -121,7 +123,8 @@ Update this section when a package is added or its role changes.
   - A returned out parameter (see above) of type `PWSTR*` marked
     `FreeWith(f)`, where `f` takes one pointer, is read and freed with `f`,
     also when the call fails (`SHGetKnownFolderPath`). `select` adds every
-    function a `FreeWith` names to the selection. Almost nothing in the
+    function that a selected function's or interface method's `FreeWith`
+    names (`IBackgroundCopyJob::GetDisplayName` brings `CoTaskMemFree`). Almost nothing in the
     metadata is marked `FreeWith`, so other strings Windows allocates stay
     `Ptr PWSTR`.
 - Structs passed or returned by value follow the x64 rule: 1, 2, 4 or 8 bytes
@@ -136,9 +139,10 @@ Update this section when a package is added or its role changes.
   first use by `Core.wideLiteral`/`Core.ansiLiteral`, and matching it
   compares pointers, as C does.
 - `HRESULT` and `IUnknown` come from windows-core (`coreType` in `Model`),
-  as in windows-rs, so that error codes from any generated module and from
-  `WindowsError` are the same type, and so is `IUnknown`. Generated modules
-  re-export them.
+  as in windows-rs: error codes from any generated module and from
+  `WindowsError` are then the same type, and `Core.cast`, `Core.release` and
+  `Core.withCom` work on the interfaces of every module, whose `Inherits`
+  chains all end at the one `IUnknown`. Generated modules re-export both.
 - COM interfaces are newtypes over the interface pointer with a
   `Core.Interface` instance (IID from the `Guid` attribute, zero without
   one) and `Core.Inherits A I` for the interface itself and each ancestor
@@ -158,10 +162,13 @@ Update this section when a package is added or its role changes.
   its size (MSVC member functions), with `Core.returnStruct`.
 - Interface parameters: `[In]` ones take any `Core.Inherits T i => i`, or
   `P.Maybe T` when optional. A function returning `HRESULT` whose last
-  `[In] const GUID*` and last `[ComOutPtr] void**` (not optional) are an
-  IID and its interface (windows-rs's Query shape) is generic in
+  `GUID*` that is not `[Out]` and last `[ComOutPtr] void**` (not optional)
+  are an IID and its interface (windows-rs's Query shape) is generic in
   `Core.Interface t` and returns `t` through `Core.query`
-  (`coCreateInstance @IFileOpenDialog`).
+  (`coCreateInstance @IFileOpenDialog`). `t` is the first type variable, so
+  that one type application chooses it for methods too
+  (`iShellItem_BindToHandler @IStream`). Neither rule applies under
+  `--sys`.
 - Reading `GetLastError` after a generated call is reliable: calls are
   `safe`, and GHC's runtime saves and restores the last error around them
   and across thread switches (`rts/Schedule.c`).

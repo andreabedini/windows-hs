@@ -10,8 +10,8 @@
 -- * a union or explicit-layout struct: a newtype over its bytes;
 -- * a delegate: a 'Foreign.Ptr.FunPtr' type and a @mk@ wrapper function;
 -- * an interface: a newtype over its pointer, with instances of
---   'Windows.Core.Interface' and of 'Windows.Core.Inherits' for every
---   interface it derives from, and a function per method that calls it
+--   'Windows.Core.Interface' and of 'Windows.Core.Inherits' for itself and
+--   every interface it derives from, and a function per method that calls it
 --   through the vtable;
 -- * a COM class: a pattern synonym for its class identifier (a 'GUID');
 -- * a constant: a pattern synonym (numbers, GUIDs, struct initializers,
@@ -868,10 +868,11 @@ wideParam ctx m (i, ty) = case (strip ty, find ((== i) . fromIntegral . paramSeq
 -- * a handle from a function that sets the last error: an invalid handle
 --   (an @InvalidHandleValue@, or null when the type names none) throws;
 -- * an IID and an interface pointer that the function writes for it
---   (@riid@ and @[ComOutPtr] void**@, as in @CoCreateInstance@), for
+--   (@riid@ and a @[ComOutPtr] void**@ that is not optional, as in
+--   @CoCreateInstance@), for
 --   functions returning @HRESULT@: the wrapper is generic in the interface,
 --   passes its IID and returns it (@SignatureKind::Query@);
--- * a last parameter that is only an output (see 'isRetval'), for
+-- * a last parameter that is only an output (windows-rs's @is_retval@), for
 --   functions returning @HRESULT@ or nothing: allocated by the wrapper and
 --   returned.
 --
@@ -937,6 +938,8 @@ functionShape ctx frees m lastError sig
                   CheckBool <$> typeName ctx d
               | classify d == KNativeTypedef
               , lastError
+              -- LocalFree returns NULL when it succeeds and the handle when
+              -- it fails, the reverse of the rule.
               , methodName m /= "LocalFree"
               , [f] <- instanceFields d
               , Just invalid <- invalidTest (strip (fieldType f)) (invalidValues d) ->
@@ -946,9 +949,11 @@ functionShape ctx frees m lastError sig
   where
     rows = Map.fromList [(paramSequence p, p) | p <- methodParams m]
     flagsAt i = maybe 0 paramFlags (Map.lookup (fromIntegral i + 1) rows)
-    -- windows-rs 0.58 @signature_param_is_query@: the last @const GUID*@
-    -- that is not an output, and the last @void**@ marked @ComOutPtr@. An
-    -- optional one (@QueryOptional@ there) is left as it is.
+    -- windows-rs 0.58 @signature_param_is_query@: the last @GUID*@ that is
+    -- not @[Out]@ (windows-rs makes every other pointer parameter const),
+    -- and the last @void**@ marked @ComOutPtr@. When that one is optional
+    -- (@QueryOptional@ there) there is no Query shape, and the wrapper only
+    -- checks the @HRESULT@.
     query = case ( findIndices isGuidIn (zip [0 ..] (sigParams sig))
                  , findIndices isObject (zip [0 ..] (sigParams sig))
                  ) of

@@ -141,7 +141,7 @@ main = do
           , "Windows.Win32.System.SystemInformation.GetSystemTimeAsFileTime" -- void and an out FILETIME
           , "Windows.Win32.System.Registry.RegCloseKey" -- WIN32_ERROR, kept
           , "Windows.Win32.Storage.FileSystem.GetFileAttributesW" -- a number, kept
-          , "Windows.Win32.Foundation.LocalFree" -- a handle, but excluded
+          , "Windows.Win32.Foundation.LocalFree" -- a handle, but NULL means success
           ]
         signatures cfg = signaturesOf dbs cfg fns
     pure $

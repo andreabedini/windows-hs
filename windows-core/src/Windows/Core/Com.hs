@@ -6,8 +6,8 @@
 -- pointer to the interface's vtable, the table of its methods: those of
 -- the interfaces it derives from first, then its own. Generated bindings
 -- make each interface a newtype over its pointer, with an 'Interface'
--- instance and an 'Inherits' instance for every interface it derives from,
--- and call methods through the vtable ('vtableEntry').
+-- instance and an 'Inherits' instance for itself and every interface it
+-- derives from, and call methods through the vtable ('vtableEntry').
 --
 -- Almost every interface derives from 'IUnknown', which counts references
 -- to the object. An interface returned by Windows holds one reference,
@@ -16,6 +16,11 @@
 -- object's apartment: the one that created it, for an object of a
 -- single-threaded apartment such as a dialog. 'withCom' releases it when
 -- an action returns or throws.
+--
+-- In a program built with @-threaded@, only a bound thread (the main
+-- thread, or one started with 'Control.Concurrent.forkOS' or
+-- 'Control.Concurrent.runInBoundThread') stays on one OS thread, so use an
+-- object of a single-threaded apartment from a bound thread.
 module Windows.Core.Com
   ( -- * Interfaces
     Interface (..)
@@ -45,8 +50,9 @@ import Windows.Core.FixedArray (FixedArray (..))
 import Windows.Core.GUID (GUID (..))
 import Windows.Core.HRESULT (HRESULT (..))
 
--- | A COM interface: a pointer to an object whose first field points to
--- the interface's vtable.
+-- | An interface: a pointer to an object whose first field points to the
+-- interface's vtable. A COM interface also derives from 'IUnknown'
+-- (@'Inherits' 'IUnknown' i@).
 class Interface i where
   -- | The interface identifier (IID), used by 'cast' and 'query'. Zero for
   -- the few interfaces the metadata gives none, as in windows-rs.
@@ -84,7 +90,7 @@ vtableEntry i n = do
 ------------------------------------------------------------------------------
 -- IUnknown
 
--- | @IUnknown@, which every COM interface derives from: reference counting
+-- | @IUnknown@, which almost every interface derives from: reference counting
 -- ('addRef', 'release') and asking an object for another of its interfaces
 -- ('cast').
 newtype IUnknown = IUnknown (Ptr ())

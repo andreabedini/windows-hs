@@ -103,6 +103,8 @@ fixedArg db = \case
   TString -> AttrString <$> serString
   TClass t
     | typeDefOrRefName t == Just ("System", "Type") -> AttrType <$> serString
+  -- II.23.3: the only value types a constructor argument can have are
+  -- enums.
   TValueType t -> do
     let (name, base) = enumOfRef db t
     AttrEnum name <$> primitive base

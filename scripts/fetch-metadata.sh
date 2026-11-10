@@ -1,9 +1,9 @@
 #!/bin/sh
 # Download the pinned win32metadata NuGet package and extract the .winmd
 # files into metadata/: Windows.Win32.winmd, and Microsoft.Direct3D.D3D12.winmd,
-# which defines the Direct3D 12 types that Windows.Win32.winmd uses. The package is licensed under the Windows SDK licence
-# (sdk_license.txt in the package), so the files are fetched on demand rather
-# than committed.
+# which defines the Direct3D 12 types that Windows.Win32.winmd uses. The
+# package is licensed under the Windows SDK licence (sdk_license.txt in the
+# package), so the files are fetched on demand rather than committed.
 set -eu
 
 version=71.0.45-preview

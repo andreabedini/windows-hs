@@ -34,7 +34,7 @@ options =
   , Option "o" ["output"] (ReqArg (\f o -> o {optOutput = Just f}) "FILE") "write the module to FILE instead of standard output"
   , Option "n" ["names"] (ReqArg (\f o -> o {optNamesFile = optNamesFile o ++ [f]}) "FILE") "read names from FILE, one per line; # starts a comment"
   , Option "" ["c-layout-checks"] (ReqArg (\f o -> o {optLayoutChecks = Just f}) "FILE") "also write C static assertions for struct layouts to FILE"
-  , Option "" ["sys"] (NoArg (\o -> o {optSys = True})) "keep every function's C signature (no error checks, OsString strings or returned out parameters), like windows-sys"
+  , Option "" ["sys"] (NoArg (\o -> o {optSys = True})) "keep every function's C signature (no error checks, OsString strings, returned out parameters or generic interface parameters), like windows-sys"
   , Option "h" ["help"] (NoArg (\o -> o {optHelp = True})) "show this help"
   ]
 

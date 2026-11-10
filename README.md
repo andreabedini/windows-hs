@@ -88,8 +88,9 @@ HCURSOR cursor <- loadCursorW (HINSTANCE nullPtr) IDC_ARROW
 -- CloseHandle returns BOOL and sets the last error, so its wrapper throws.
 closed <- try @WindowsError (closeHandle (HANDLE nullPtr))
 
--- COM: create an object, choosing the interface with a type application,
--- and call a method of an interface IFileOpenDialog derives from.
+-- COM, after CoInitializeEx: create an object, choosing the interface with
+-- a type application, and call a method of an interface IFileOpenDialog
+-- derives from.
 let create = with FileOpenDialog $ \clsid -> coCreateInstance @IFileOpenDialog clsid Nothing CLSCTX_INPROC_SERVER
 withCom create $ \dialog -> iFileDialog_SetTitle dialog [osstr|Pick a file|]
 ```
@@ -101,9 +102,9 @@ On Windows, `cabal run hello` runs it.
 ### Fetch the metadata
 
 The NuGet package that contains the `.winmd` files is licensed under the
-Windows SDK licence terms, so they are not stored in this repository. To download the pinned version
-(`Microsoft.Windows.SDK.Win32Metadata` 71.0.45-preview) and check its
-SHA-256:
+Windows SDK licence terms, so they are not stored in this repository. To
+download the pinned version (`Microsoft.Windows.SDK.Win32Metadata`
+71.0.45-preview) and check its SHA-256:
 
 ```sh
 ./scripts/fetch-metadata.sh
@@ -195,13 +196,14 @@ you write `[osstr|...|]` literals.
   same way (`info.anonymous.wProcessorArchitecture`) and are built with
   `Core.setMember`.
 - **Constants** are pattern synonyms: numbers, enum values, GUIDs, strings,
-  and handles given as integers (`HKEY_LOCAL_MACHINE`). A COM class is the
-  `GUID` of its class identifier (`FileOpenDialog`).
+  and handles given as integers (`HKEY_LOCAL_MACHINE`). A COM class is a
+  `GUID` constant, its class identifier (`FileOpenDialog`).
 - **COM interfaces** are newtypes over the interface pointer. Each method is
   a function named after the interface and the method
   (`iFileDialog_SetTitle`) that takes the interface or any interface derived
-  from it. Methods follow the same rules as functions. A function that
-  returns an interface for a requested IID, such as `CoCreateInstance`,
+  from it. Methods follow the same rules as functions. A function or
+  method that returns an interface for a requested IID, such as
+  `CoCreateInstance`,
   returns any interface you choose with a type application, and
   `Windows.Core.cast` asks an object for another of its interfaces
   (`QueryInterface`). Release what you receive with `Windows.Core.release`
@@ -235,7 +237,8 @@ cabal test all
 
 The tests read `metadata/Windows.Win32.winmd` and
 `metadata/Microsoft.Direct3D.D3D12.winmd`; set `WINMD_PATH` to read
-`Windows.Win32.winmd` from elsewhere, with the Direct3D 12 file next to it. Development happens on Linux with GHC 9.12.
+`Windows.Win32.winmd` from elsewhere, with the Direct3D 12 file next to it.
+Development happens on Linux with GHC 9.12.
 
 [`coverage/win32/names.txt`](coverage/win32/names.txt) lists every function
 the `Win32` package binds, the first coverage target; the tests check that

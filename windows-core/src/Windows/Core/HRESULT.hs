@@ -29,7 +29,9 @@ failed :: HRESULT -> Bool
 failed = not . succeeded
 
 -- | The C macro @HRESULT_FROM_WIN32@: the code in the @FACILITY_WIN32@
--- facility, marked as a failure. 0 (@ERROR_SUCCESS@) stays 0.
+-- facility, marked as a failure. A value that is zero or negative as an
+-- @HRESULT@ (@ERROR_SUCCESS@, or one that already is an @HRESULT@) is
+-- unchanged, as in the macro.
 hresultFromWin32 :: Word32 -> HRESULT
 hresultFromWin32 e
   | fromIntegral e <= (0 :: Int32) = HRESULT (fromIntegral e)

@@ -32,7 +32,8 @@ data Kind
   | -- | A struct with sequential layout.
     KStruct
   | -- | A struct with explicit layout: a union, or a struct with explicit
-    -- field offsets. Projected as opaque bytes for now.
+    -- field offsets. Projected as a newtype over its bytes, with a
+    -- 'Windows.Core.Member' instance per member.
     KUnion
   | -- | A struct marked @NativeTypedef@: a C typedef such as @HWND@ or
     -- @BOOL@ wrapping a single field.
@@ -108,7 +109,9 @@ supportsX64 r = case findAttribute "SupportedArchitectureAttribute" r of
 -- | The name of the type windows-core provides in place of a definition,
 -- as windows-rs maps @HRESULT@ to @windows_core::HRESULT@. Generated
 -- modules re-export it instead of declaring their own, so that error codes
--- from every module and from the runtime's own error type agree.
+-- from every module and from the runtime's own error type agree, and the
+-- runtime's COM functions ('Windows.Core.cast', 'Windows.Core.release')
+-- accept the interfaces of every module.
 coreType :: TypeDef -> Maybe Text
 coreType t = case (typeDefNamespace t, typeDefName t) of
   ("Windows.Win32.Foundation", "HRESULT") -> Just "HRESULT"

@@ -15,7 +15,8 @@ import System.OsString (OsString, decodeUtf, osstr)
 import Windows.Core (WindowsError, cast, lastError, release, takeWideString, withCom)
 import Windows.Win32
 
--- | Print some system information. With 'True', also show a message box.
+-- | Print some system information. With 'True', also show a file dialog and
+-- a message box.
 hello :: Bool -> IO ()
 hello gui = do
   ticks <- getTickCount
@@ -104,9 +105,11 @@ errors = do
 -- interface. With 'True', also show the dialog.
 com :: Bool -> IO ()
 com gui = do
-  -- A file dialog lives in a single-threaded apartment. The main thread of
-  -- a program built with -threaded is a bound thread, so it stays on the
-  -- OS thread that enters the apartment.
+  -- A file dialog lives in a single-threaded apartment, which this OS
+  -- thread enters. hello is built without -threaded, so all of it runs on
+  -- this thread; with -threaded the main thread is bound and stays here too.
+  -- S_FALSE (already initialized) is a success as well, so CoInitializeEx
+  -- keeps its HRESULT (CanReturnMultipleSuccessValues).
   let COINIT apartment = COINIT_APARTMENTTHREADED
   _ <- coInitializeEx nullPtr (fromIntegral apartment)
 
@@ -130,7 +133,9 @@ com gui = do
       case shown of
         Left e -> putStrLn ("No file chosen: " ++ show (e :: WindowsError))
         Right () -> withCom (iFileDialog_GetResult dialog) $ \chosen -> do
-          -- Windows allocates the name, and the caller frees it.
+          -- Windows allocates the name. The metadata does not say what
+          -- frees it (no FreeWith), so the wrapper returns the PWSTR and the
+          -- caller frees it.
           PWSTR name <- iShellItem_GetDisplayName chosen SIGDN_FILESYSPATH
           path <- takeWideString name (coTaskMemFree (castPtr name)) (pure ())
           putStrLn . ("You chose: " ++) =<< decodeUtf path

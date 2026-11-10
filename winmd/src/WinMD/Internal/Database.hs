@@ -74,7 +74,8 @@ import Data.Word (Word32, Word64, Word8)
 import WinMD.Internal.PE (metadataBlob)
 import WinMD.Internal.Parser
 
--- | An error in a metadata file. Raised by 'loadDatabase' as a 'Left', and
+-- | An error in a metadata file. 'WinMD.readDatabase' and
+-- 'WinMD.parseDatabase' return it as a 'Left', and
 -- thrown by accessors that decode blobs (signatures, constants, attributes)
 -- when the blob is malformed.
 newtype WinMDError = WinMDError String
@@ -586,6 +587,9 @@ validate db =
           BlobIdx -> case blobBounds (dbBlobs db) (fromIntegral v) of
             Right _ -> pure ()
             Left msg -> err msg
+          -- A list column (FieldList, MethodList, ParamList; II.22) may
+          -- point one past the last row: the owner's list is empty and
+          -- ends the table.
           Idx target ->
             unless (fromIntegral v <= rowCount db target + 1) $
               err ("index " ++ show v ++ " is outside table " ++ tableName target)
