@@ -145,6 +145,16 @@ cabal test all
 The tests read `metadata/Windows.Win32.winmd`; set `WINMD_PATH` to use a
 different file.
 
+`coverage/win32/names.txt` lists every Windows function that Hackage's
+[`Win32`](https://hackage.haskell.org/package/Win32) package binds, so that
+we can check windows-hs covers at least the same API. The tests check that
+they all generate. To also compile them and check their struct layouts
+against the Windows headers (this needs `x86_64-w64-mingw32-gcc`):
+
+```sh
+scripts/check-win32-surface.sh
+```
+
 To run the sample without Windows, unpack a
 [Windows GHC binary distribution](https://downloads.haskell.org/~ghc/9.12.2/)
 and build it under wine:

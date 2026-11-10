@@ -61,6 +61,9 @@ Cabal packages, one directory each, listed in `cabal.project`:
 - `samples/hello/`: a module generated from `bindgen-names.txt` and a small
   program using it. The library (bindings and `Hello`) builds everywhere; the
   executable only on Windows.
+- `coverage/win32/names.txt`: the win32metadata name of every function
+  Hackage's Win32 package imports, the first coverage milestone. Written by
+  `scripts/win32-surface-names.sh`; do not edit by hand.
 
 Update this section when a package is added or its role changes.
 
@@ -112,6 +115,10 @@ repository root.
   inside the Claude Code sandbox: `wineserver` needs to write
   `/tmp/.wine-<uid>`, which is read-only there. Ask the user to run it with
   `! scripts/wine-hello.sh ...`, or to grant that path.
+- `cabal test all` checks that every name in `coverage/win32/names.txt`
+  generates without skips. `scripts/check-win32-surface.sh` also compiles
+  the result with `-Werror` (about a minute, over 1 GB) and checks its
+  layouts with mingw; run it after changing the generator.
 - `x86_64-w64-mingw32-gcc` and `wine` are installed. Use them to check
   generated struct layouts: emit a C file of `sizeof`/`offsetof` checks against
   `windows.h`, compile it with mingw, and run it under wine.

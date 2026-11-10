@@ -111,6 +111,14 @@ main = do
           (code, _, err) <- readProcessWithExitCode gcc ["-std=c11", "-fsyntax-only", file] ""
           pure (if code == ExitSuccess then [] else [err])
 
+  -- Compiling this output takes about a minute; scripts/check-win32-surface.sh
+  -- does that and checks its layouts.
+  test "the Win32 package's functions generate without skips" $ do
+    names <- parseNames <$> T.readFile "../coverage/win32/names.txt"
+    pure $ case bindgen defaultConfig db names of
+      Left es -> es
+      Right out -> outWarnings out `shouldBe` []
+
   n <- readIORef failures
   when (n > 0) $ do
     putStrLn (show n ++ " test(s) failed")
