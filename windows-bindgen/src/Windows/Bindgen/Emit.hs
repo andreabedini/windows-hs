@@ -1130,6 +1130,9 @@ render cfg decls =
          , "{-# LANGUAGE FlexibleInstances #-}"
          , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
          , "{-# LANGUAGE MultiParamTypeClasses #-}"
+         , -- Negative constants are written as (-2147483648); without this,
+           -- that is negate 2147483648, which overflows Int32 and warns.
+           "{-# LANGUAGE NegativeLiterals #-}"
          , "{-# LANGUAGE NoFieldSelectors #-}"
          , "{-# LANGUAGE NoImplicitPrelude #-}"
          , "{-# LANGUAGE PatternSynonyms #-}"
