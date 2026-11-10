@@ -19,8 +19,15 @@ Windows.Win32.UI.WindowsAndMessaging.WindowFromPoint
 # A callback (WNDPROC) inside a struct
 Windows.Win32.UI.WindowsAndMessaging.RegisterClassW
 
-# COM: an interface pointer and GUIDs
+# COM: create an object of a class, call methods of its interface and of
+# the interfaces that one derives from, and ask it for another interface
+Windows.Win32.System.Com.CoInitializeEx
+Windows.Win32.System.Com.CoUninitialize
+Windows.Win32.System.Com.COINIT
 Windows.Win32.System.Com.CoCreateInstance
+Windows.Win32.System.Com.CoTaskMemFree
+Windows.Win32.UI.Shell.FileOpenDialog
+Windows.Win32.UI.Shell.IFileOpenDialog
 
 # Constants
 Windows.Win32.Foundation.MAX_PATH

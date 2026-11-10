@@ -9,6 +9,8 @@ module Windows.Bindgen.Model
   , supportsX64
   , instanceFields
   , delegateInvoke
+  , interfaceBase
+  , interfaceAncestors
   , Selection (..)
   , select
   , stringConstantType
@@ -37,6 +39,10 @@ data Kind
     KNativeTypedef
   | KDelegate
   | KInterface
+  | -- | A COM class: a struct without fields that carries the class
+    -- identifier (CLSID) in a @Guid@ attribute, such as @FileOpenDialog@.
+    -- Projected as a GUID constant, as in windows-rs.
+    KClass
   | -- | The @Apis@ class that holds a namespace's functions and constants.
     KApis
   | -- | A custom attribute class, such as @NativeTypedefAttribute@. These
@@ -55,6 +61,7 @@ classify t
       Just ("System", "ValueType")
         | hasAttribute "NativeTypedefAttribute" t -> KNativeTypedef
         | typeDefFlags t .&. typeLayoutMask == typeExplicitLayout -> KUnion
+        | null (instanceFields t), hasAttribute "GuidAttribute" t -> KClass
         | otherwise -> KStruct
       _
         | typeDefName t == "Apis" -> KApis
@@ -105,6 +112,7 @@ supportsX64 r = case findAttribute "SupportedArchitectureAttribute" r of
 coreType :: TypeDef -> Maybe Text
 coreType t = case (typeDefNamespace t, typeDefName t) of
   ("Windows.Win32.Foundation", "HRESULT") -> Just "HRESULT"
+  ("Windows.Win32.System.Com", "IUnknown") -> Just "IUnknown"
   _ -> Nothing
 
 -- | The non-static fields of a struct, union or enum.
@@ -116,6 +124,25 @@ delegateInvoke :: TypeDef -> Maybe MethodDef
 delegateInvoke t = case [m | m <- typeDefMethods t, methodName m == "Invoke"] of
   [m] -> Just m
   _ -> Nothing
+
+-- | The interface an interface derives from directly. win32metadata gives
+-- each at most one (II.22.23: one InterfaceImpl row per interface it
+-- implements).
+interfaceBase :: TypeDef -> Either String (Maybe TypeDef)
+interfaceBase t = case typeDefInterfaces t of
+  [] -> Right Nothing
+  [r] ->
+    resolveTarget r >>= \case
+      TargetDef d -> Right (Just d)
+      TargetGuid -> Left "an interface derives from System.Guid"
+  _ -> Left "an interface derives from several interfaces"
+
+-- | The interfaces an interface derives from, nearest first.
+interfaceAncestors :: TypeDef -> Either String [TypeDef]
+interfaceAncestors t =
+  interfaceBase t >>= \case
+    Nothing -> Right []
+    Just b -> (b :) <$> interfaceAncestors b
 
 -- | Everything one generated module contains.
 data Selection = Selection
@@ -238,6 +265,10 @@ closeOver roots =
 -- | The definitions a type definition needs in order to be emitted.
 defDeps :: TypeDef -> [TypeDef]
 defDeps t = case classify t of
+  _ | Just _ <- coreType t -> []
+  KInterface ->
+    either (const []) (maybe [] pure) (interfaceBase t)
+      ++ concatMap (sigDeps . methodSignature) (typeDefMethods t)
   KStruct -> concatMap (typeDeps . fieldType) (instanceFields t)
   KUnion -> concatMap (typeDeps . fieldType) (instanceFields t)
   KNativeTypedef -> concatMap (typeDeps . fieldType) (instanceFields t)

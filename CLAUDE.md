@@ -62,7 +62,10 @@ Cabal packages, one directory each, listed in `cabal.project`:
   union members (`Member`, `getMember`, `setMember`, `zeroed`), and strings
   (`WideString`, with `OsString` and `Maybe OsString` instances, for
   parameters; `withWideBuffer`, `peekWideBuffer` and `takeWideString` for
-  strings Windows writes; depends on `os-string`). Its few static kernel32
+  strings Windows writes; depends on `os-string`), and COM
+  (`Windows.Core.Com`: the `Interface` and `Inherits` classes, `upcast`,
+  `vtableEntry`, and `IUnknown` with `cast`, `addRef`, `release`, `withCom`
+  and `query`). Its few static kernel32
   imports are stubs that throw on other systems, so the library builds,
   links and loads on Linux
   (tests, GHCi, Template Haskell such as `[osstr|...|]`); only calling
@@ -126,14 +129,39 @@ Update this section when a package is added or its role changes.
 - Constants are pattern synonyms of every kind windows-sys has: numbers,
   enum and typedef values, pointers given as integers (`HKEY_LOCAL_MACHINE`,
   `IDC_ARROW`, matched through `F.ptrToIntPtr`), GUIDs (`Guid` attribute),
-  struct initializers (`Constant` attribute, e.g. `PROPERTYKEY`), and
-  strings. A string constant is `PWSTR`, or `PSTR` when marked
+  struct initializers (`Constant` attribute, e.g. `PROPERTYKEY`), COM class
+  identifiers (`KClass`: a struct with no fields and a `Guid` attribute,
+  e.g. `FileOpenDialog`), and strings. A string constant is `PWSTR`, or `PSTR` when marked
   `NativeEncoding("ansi")`; it points to a `NOINLINE` value allocated on
   first use by `Core.wideLiteral`/`Core.ansiLiteral`, and matching it
   compares pointers, as C does.
-- `HRESULT` comes from windows-core (`coreType` in `Model`), as in
-  windows-rs, so that error codes from any generated module and from
-  `WindowsError` are the same type. Generated modules re-export it.
+- `HRESULT` and `IUnknown` come from windows-core (`coreType` in `Model`),
+  as in windows-rs, so that error codes from any generated module and from
+  `WindowsError` are the same type, and so is `IUnknown`. Generated modules
+  re-export them.
+- COM interfaces are newtypes over the interface pointer with a
+  `Core.Interface` instance (IID from the `Guid` attribute, zero without
+  one) and `Core.Inherits A I` for the interface itself and each ancestor
+  (win32metadata gives at most one base, in InterfaceImpl). Interfaces not
+  derived from `IUnknown` (`ID3D12ShaderReflectionType`) cannot be
+  released. References are released explicitly (`Core.release`,
+  `Core.withCom`), never by finalizers, because Release must run in the
+  object's apartment.
+- Methods (`interfaceMethods` in `Emit`) are named `iFace_Method`
+  (`valueName` of the interface, so `id3D12DescriptorHeap_GetDesc`); a
+  repeated name is numbered from its second occurrence. The vtable slot is
+  the number of methods of every ancestor plus the method's index; the
+  wrapper reads it with `Core.vtableEntry` and calls it through a
+  `dynamic` import (no `proc'`). `this` is any `Core.Inherits I this`.
+  Methods get the function wrapper rules above (never `SetLastError`). A
+  struct result is returned through a hidden pointer after `this` whatever
+  its size (MSVC member functions), with `Core.returnStruct`.
+- Interface parameters: `[In]` ones take any `Core.Inherits T i => i`, or
+  `P.Maybe T` when optional. A function returning `HRESULT` whose last
+  `[In] const GUID*` and last `[ComOutPtr] void**` (not optional) are an
+  IID and its interface (windows-rs's Query shape) is generic in
+  `Core.Interface t` and returns `t` through `Core.query`
+  (`coCreateInstance @IFileOpenDialog`).
 - Reading `GetLastError` after a generated call is reliable: calls are
   `safe`, and GHC's runtime saves and restores the last error around them
   and across thread switches (`rts/Schedule.c`).

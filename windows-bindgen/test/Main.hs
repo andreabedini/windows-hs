@@ -8,6 +8,7 @@ import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (when)
 import Data.Char (isAsciiLower)
 import Data.IORef
+import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as T
@@ -205,6 +206,59 @@ main = do
         ++ ( (filter ("getCurrentDirectoryW" `Text.isPrefixOf`) <$> signaturesOf dbs defaultConfig {cfgSys = True} fns)
                `shouldBe` Right ["getCurrentDirectoryW :: Word32 -> PWSTR -> IO Word32"]
            )
+
+  -- Vtable slots count the methods of every ancestor: IUnknown has 3,
+  -- IModalWindow 1 (Show), so IFileDialog's own methods start at 4.
+  -- ID3D12DescriptorHeap derives from ID3D12Pageable (0 methods),
+  -- ID3D12DeviceChild (1) and ID3D12Object (4), so its start at 8; they
+  -- return structs, which a method returns through a hidden pointer after
+  -- this whatever their size (the MSVC member-function ABI).
+  test "COM interfaces and methods" $ do
+    let names =
+          [ "Windows.Win32.System.Com.CoCreateInstance"
+          , "Windows.Win32.UI.Shell.FileOpenDialog"
+          , "Windows.Win32.UI.Shell.IFileOpenDialog"
+          , "Windows.Win32.Graphics.Direct3D12.ID3D12DescriptorHeap"
+          ]
+    pure $ case bindgen defaultConfig dbs names of
+      Left es -> es
+      Right out ->
+        let ls = Text.lines (outModule out)
+            slots =
+              [ (Text.takeWhile (/= ' ') l, Text.takeWhile (/= ' ') rest)
+              | (l, next) <- zip ls (drop 1 ls)
+              , " (Core.upcast @" `Text.isInfixOf` l
+              , Just rest <- [Text.stripPrefix "  Core.vtableEntry this " next]
+              ]
+            pick ns = sort (filter (\(n, _) -> n `elem` ns) slots)
+            sigs ns = sort [l | l <- ls, any (\n -> (n <> " :: ") `Text.isPrefixOf` l) ns]
+         in outWarnings out `shouldBe` []
+              ++ pick ["iModalWindow_Show", "iFileDialog_SetFileTypes", "iFileDialog_SetTitle", "iFileDialog_GetResult", "iFileOpenDialog_GetResults", "iFileOpenDialog_GetSelectedItems"]
+                `shouldBe` sort
+                  [ ("iModalWindow_Show", "3")
+                  , ("iFileDialog_SetFileTypes", "4")
+                  , ("iFileDialog_SetTitle", "17")
+                  , ("iFileDialog_GetResult", "20")
+                  , ("iFileOpenDialog_GetResults", "27")
+                  , ("iFileOpenDialog_GetSelectedItems", "28")
+                  ]
+              ++ pick ["id3D12DescriptorHeap_GetDesc", "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart"]
+                `shouldBe` sort [("id3D12DescriptorHeap_GetDesc", "8"), ("id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart", "9")]
+              ++ sigs ["coCreateInstance", "iFileDialog_SetTitle", "iFileDialog_GetResult", "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart"]
+                `shouldBe` sort
+                  [ "coCreateInstance :: Core.Interface t => Ptr GUID -> P.Maybe IUnknown -> CLSCTX -> IO t"
+                  , "id3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart :: Core.Inherits ID3D12DescriptorHeap this => this -> IO D3D12_CPU_DESCRIPTOR_HANDLE"
+                  , "iFileDialog_GetResult :: Core.Inherits IFileDialog this => this -> IO IShellItem"
+                  , "iFileDialog_SetTitle :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()"
+                  ]
+              ++ [l | l <- ls, "instance Core.Inherits " `Text.isPrefixOf` l, " IFileOpenDialog" `Text.isSuffixOf` l]
+                `shouldBe` [ "instance Core.Inherits IFileOpenDialog IFileOpenDialog"
+                           , "instance Core.Inherits IFileDialog IFileOpenDialog"
+                           , "instance Core.Inherits IModalWindow IFileOpenDialog"
+                           , "instance Core.Inherits IUnknown IFileOpenDialog"
+                           ]
+              ++ check ("pattern FileOpenDialog :: GUID" `elem` ls) "FileOpenDialog is not a GUID pattern"
+              ++ check (any ("Core.returnStruct" `Text.isInfixOf`) ls) "struct results are not returned through a hidden pointer"
 
   -- Compiling this output takes about a minute; scripts/check-win32-surface.sh
   -- does that and checks its layouts.

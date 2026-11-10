@@ -9,7 +9,11 @@
 --   offsets computed by "Windows.Bindgen.Layout";
 -- * a union or explicit-layout struct: a newtype over its bytes;
 -- * a delegate: a 'Foreign.Ptr.FunPtr' type and a @mk@ wrapper function;
--- * a COM interface: an empty data type, used behind pointers;
+-- * an interface: a newtype over its pointer, with instances of
+--   'Windows.Core.Interface' and of 'Windows.Core.Inherits' for every
+--   interface it derives from, and a function per method that calls it
+--   through the vtable;
+-- * a COM class: a pattern synonym for its class identifier (a 'GUID');
 -- * a constant: a pattern synonym (numbers, GUIDs, struct initializers,
 --   pointers given as integers, and strings);
 -- * a function: a binding that resolves the function on first use with
@@ -25,7 +29,8 @@ module Windows.Bindgen.Emit
 
 import Control.Monad (unless, when)
 import Data.Either (partitionEithers)
-import Data.List (find, sortOn)
+import Data.List (find, findIndices, sortOn)
+import Data.Maybe (isJust, maybeToList)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -125,19 +130,40 @@ generate cfg sel =
 
     functionList = sortOn methodName (selFunctions sel)
     delegateMks = [mkName n | (t, n) <- Map.toList (ctxTypes ctx), classify t == KDelegate]
-    functionNames = dedupe (Set.fromList delegateMks) (map (valueName . methodName) functionList)
+    -- Methods of the emitted interfaces, in the order of their interfaces'
+    -- names.
+    methodList =
+      [ (t, iface, raw, k, m)
+      | (t, iface) <- sortOn snd (Map.toList (ctxTypes ctx))
+      , classify t == KInterface
+      , Nothing <- [coreType t]
+      , (raw, k, m) <- interfaceMethods iface t
+      ]
+    callableNames =
+      dedupe
+        (Set.fromList delegateMks)
+        (map (valueName . methodName) functionList ++ [raw | (_, _, raw, _, _) <- methodList])
+    (functionNames, methodNames) = splitAt (length functionList) callableNames
+    callables =
+      [ (methodName m, n, Export <$> maybe (Left "no DllImport") Right (methodImplMap m), m)
+      | (m, n) <- zip functionList functionNames
+      ]
+        ++ [ (typeDefFullName t <> "." <> methodName m, n, Right (Method iface k), m)
+           | ((t, iface, _, k, m), n) <- zip methodList methodNames
+           ]
+    emitCallable frees (_, n, callee, m) = callee >>= \c -> emitFunction (cfgSys cfg) ctx frees n c m
     -- The functions that emit, by C name, for wrappers that free what they
     -- return with one of them (FreeWith).
     emitted =
       Map.fromList
         [ (methodName m, (n, m))
-        | (m, n) <- zip functionList functionNames
-        , Right _ <- [emitFunction (cfgSys cfg) ctx Map.empty n m]
+        | c@(_, n, Right (Export _), m) <- callables
+        , Right _ <- [emitCallable Map.empty c]
         ]
     (fnWarnings, fnDecls) =
       partitionEithers
-        [ either (Left . warn (methodName m)) Right (emitFunction (cfgSys cfg) ctx emitted n m)
-        | (m, n) <- zip functionList functionNames
+        [ either (Left . warn label) Right (emitCallable emitted c)
+        | c@(label, _, _, _) <- callables
         ]
 
     warn name e = T.unpack name ++ ": " ++ e
@@ -154,6 +180,7 @@ reservedTypes =
     , "GUID"
     , "HRESULT"
     , "IO"
+    , "IUnknown"
     , "Int16"
     , "Int32"
     , "Int64"
@@ -186,6 +213,25 @@ typeNames ts =
 mkName :: Text -> Text
 mkName n = "mk" <> n
 
+-- | The start of the names of an interface's methods: @iFileDialog_@.
+methodPrefix :: Text -> Text
+methodPrefix iface = valueName iface <> "_"
+
+-- | The methods of an emitted interface: their names before 'dedupe', and
+-- their vtable slots. An overloaded name is numbered from its second
+-- occurrence (@SetAttributeValue2@), as in windows-rs.
+interfaceMethods :: Text -> TypeDef -> [(Text, Int, MethodDef)]
+interfaceMethods iface t =
+  [ (methodPrefix iface <> overload k (methodName m), base + k, m)
+  | (k, m) <- zip [0 ..] ms
+  ]
+  where
+    ms = typeDefMethods t
+    base = either (const 0) (sum . map (length . typeDefMethods)) (interfaceAncestors t)
+    overload k n = case length (filter ((== n) . methodName) (take k ms)) of
+      0 -> n
+      c -> n <> tshow (c + 1)
+
 ------------------------------------------------------------------------------
 -- Types
 
@@ -217,7 +263,7 @@ hsType ctx = \case
   TArray t shape -> do
     e <- hsType ctx t
     Right ("FixedArray " <> T.pack (show (product (arraySizes shape))) <> " " <> atom e)
-  TFnPtr sig -> ("FunPtr " <>) . atom <$> ffiFunctionType ctx sig
+  TFnPtr sig -> ("FunPtr " <>) . atom <$> ffiFunctionType ctx Nothing sig
   TValueType r ->
     resolveTarget r >>= \case
       TargetGuid -> Right "GUID"
@@ -225,7 +271,7 @@ hsType ctx = \case
   TClass r ->
     resolveTarget r >>= \case
       TargetDef d
-        | classify d == KInterface -> ("Ptr " <>) <$> typeName ctx d
+        | classify d == KInterface -> typeName ctx d
         | classify d == KDelegate -> typeName ctx d
       _ -> Left ("unsupported class type " ++ T.unpack (renderType (TClass r)))
   t -> Left ("unsupported type " ++ T.unpack (renderType t))
@@ -376,7 +422,7 @@ emitType ctx members t = do
           }
     KDelegate -> do
       invoke <- maybe (Left "delegate without an Invoke method") Right (delegateInvoke t)
-      fn <- ffiFunctionType ctx (methodSignature invoke)
+      fn <- ffiFunctionType ctx Nothing (methodSignature invoke)
       Right
         Decl
           { declExports = [name, mkName name]
@@ -390,11 +436,53 @@ emitType ctx members t = do
                      , "  " <> mkName name <> " :: (" <> fn <> ") -> IO " <> name
                      ]
           }
-    KInterface ->
+    KInterface -> do
+      ancestors <- interfaceAncestors t >>= mapM (typeName ctx)
+      iid <- case findAttribute "GuidAttribute" t of
+        Just a -> maybe (Left "malformed Guid attribute") guidLit (mapM attrInteger (attrArgs a))
+        Nothing -> guidLit (replicate 11 0)
+      let com = "IUnknown" `elem` ancestors
       Right
         Decl
-          { declExports = [name]
-          , declBody = T.unlines (doc ++ ["data " <> name])
+          { declExports = [name <> " (..)"]
+          , declBody =
+              T.unlines $
+                commentLines
+                  ( doc
+                      ++ if com
+                        then
+                          [ "-- | A COM interface. Its methods are the functions named @" <> methodPrefix name <> "...@, and those of"
+                          , "-- the interfaces it derives from. Release a reference with 'Core.release'."
+                          ]
+                        else
+                          [ "-- | An interface without a reference count (not derived from @IUnknown@). Its methods are"
+                          , "-- the functions named @" <> methodPrefix name <> "...@, and those of the interfaces it derives from."
+                          ]
+                  )
+                  ++ [ "newtype " <> name <> " = " <> name <> " (Ptr ())"
+                     , "  deriving stock (P.Show)"
+                     , "  deriving newtype (P.Eq, P.Ord, S.Storable)"
+                     , ""
+                     , "instance Core.Interface " <> name <> " where"
+                     , "  interfaceId = " <> litExpr iid
+                     , "  toRaw (" <> name <> " p) = p"
+                     , "  fromRaw = " <> name
+                     ]
+                  ++ concat [["", "instance Core.Inherits " <> a <> " " <> name] | a <- name : ancestors]
+          }
+    KClass -> do
+      clsid <- case findAttribute "GuidAttribute" t of
+        Just a -> maybe (Left "malformed Guid attribute") guidLit (mapM attrInteger (attrArgs a))
+        Nothing -> Left "a class without a Guid attribute"
+      Right
+        Decl
+          { declExports = ["pattern " <> name]
+          , declBody =
+              T.unlines $
+                commentLines (doc ++ ["-- | The class identifier (CLSID) of the COM class " <> typeDefName t <> "."])
+                  ++ [ "pattern " <> name <> " :: GUID"
+                     , "pattern " <> name <> " = " <> litExpr clsid
+                     ]
           }
     k -> Left ("cannot emit a " ++ show k)
 
@@ -441,17 +529,30 @@ slot ctx ty = do
         8 -> Slot hs "Word64" AsWord
         _ -> Slot hs ("Ptr " <> atom hs) ByRef
 
--- | The FFI type of a function pointer with this signature. Structs passed
--- by value appear as the integers or pointers the ABI uses.
-ffiFunctionType :: Ctx -> MethodSig -> Either String Text
-ffiFunctionType ctx sig = do
+-- | How a result crosses the FFI boundary. A C++ member function, such as a
+-- COM method, returns every struct through a hidden pointer, which comes
+-- after @this@ (MSVC x64 ABI, \"Return values\"), so small structs are not
+-- returned as integers there as they are from C functions.
+resultSlot :: Ctx -> Bool -> Type -> Either String Slot
+resultSlot ctx method ty = do
+  s <- slot ctx ty
+  Right $
+    if method && slotConv s == AsWord
+      then Slot (slotHs s) ("Ptr " <> atom (slotHs s)) ByRef
+      else s
+
+-- | The FFI type of a function pointer with this signature, given the type
+-- of @this@ for a method. Structs passed by value appear as the integers
+-- or pointers the ABI uses.
+ffiFunctionType :: Ctx -> Maybe Text -> MethodSig -> Either String Text
+ffiFunctionType ctx this sig = do
   checkSig sig
   params <- mapM (slot ctx) (sigParams sig)
-  ret <- slot ctx (sigReturnType sig)
+  ret <- resultSlot ctx (isJust this) (sigReturnType sig)
   let (extra, result) = case slotConv ret of
         ByRef -> ([slotFfi ret], slotFfi ret)
         _ -> ([], slotFfi ret)
-  Right (T.intercalate " -> " (extra ++ map slotFfi params ++ ["IO " <> atom result]))
+  Right (T.intercalate " -> " (maybeToList this ++ extra ++ map slotFfi params ++ ["IO " <> atom result]))
 
 checkSig :: MethodSig -> Either String ()
 checkSig sig = do
@@ -462,16 +563,30 @@ checkSig sig = do
 ------------------------------------------------------------------------------
 -- Functions
 
-emitFunction :: Bool -> Ctx -> Map Text (Text, MethodDef) -> Text -> MethodDef -> Either String Decl
-emitFunction sys ctx frees name m = do
-  im <- maybe (Left "no DllImport") Right (methodImplMap m)
+-- | What a binding calls.
+data Callee
+  = -- | A function exported by a DLL.
+    Export ImplMap
+  | -- | A method of an interface: the interface's Haskell name, and the
+    -- method's slot in its vtable.
+    Method Text Int
+
+emitFunction :: Bool -> Ctx -> Map Text (Text, MethodDef) -> Text -> Callee -> MethodDef -> Either String Decl
+emitFunction sys ctx frees name callee m = do
   let sig = methodSignature m
+      this = case callee of
+        Method iface _ -> Just iface
+        Export _ -> Nothing
+      setsLastError = case callee of
+        Export im -> hasFlag pinvokeSupportsLastError (implMapFlags im)
+        Method {} -> False
   checkSig sig
   params <- mapM (slot ctx) (sigParams sig)
-  ret <- slot ctx (sigReturnType sig)
-  ffiType <- ffiFunctionType ctx sig
-  shape <- if sys then Right Raw else functionShape ctx frees m im sig
+  ret <- resultSlot ctx (isJust this) (sigReturnType sig)
+  ffiType <- ffiFunctionType ctx this sig
+  shape <- if sys then Right Raw else functionShape ctx frees m setsLastError sig
   strings <- if sys then Right (map (const Nothing) params) else mapM (wideParam ctx m) (zip [1 ..] (sigParams sig))
+  interfaces <- if sys then Right (map (const Nothing) params) else mapM (interfaceParam ctx m) (zip [1 ..] (sigParams sig))
   buffers <- if sys then Right Map.empty else wideBuffers ctx m (sigParams sig)
   let procName = "proc'" <> name
       callName = "call'" <> name
@@ -479,24 +594,37 @@ emitFunction sys ctx frees name m = do
       args = ["a" <> tshow i | i <- [1 .. n]]
       -- A returned out parameter is passed a pointer the wrapper allocates,
       -- and a string buffer one sized by its count parameter: neither is an
-      -- argument of the wrapper.
+      -- argument of the wrapper. Nor are the IID and the interface pointer
+      -- of a query.
       outIndex = case shape of
         ReturnOut {} -> Just (n - 1)
         ReturnString {} -> Just (n - 1)
+        Query _ o -> Just o
         _ -> Nothing
-      hsIndices = [i | i <- [0 .. n - 1], Just i /= outIndex, i `Map.notMember` buffers]
-      -- String parameters are type variables, s1, s2, ...
+      guidIndex = case shape of
+        Query g _ -> Just g
+        _ -> Nothing
+      hsIndices = [i | i <- [0 .. n - 1], Just i /= outIndex, Just i /= guidIndex, i `Map.notMember` buffers]
+      -- String parameters are type variables, s1, s2, ..., and interfaces
+      -- that are not optional i1, i2, ...
       stringVars = Map.fromList (zip [i | (i, Just _) <- zip [0 :: Int ..] strings] ["s" <> tshow k | k <- [1 :: Int ..]])
+      interfaceVars = Map.fromList (zip [i | (i, Just (_, False)) <- zip [0 :: Int ..] interfaces] ["i" <> tshow k | k <- [1 :: Int ..]])
       argIn i
         | Just i == outIndex = "o"
+        | Just i == guidIndex = "riid"
         | Just (_, con, _) <- Map.lookup i buffers = "(" <> con <> " " <> a <> ")"
         | Just (con, _) <- strings !! i = "(" <> con <> " " <> a <> "')"
+        | Just (iface, False) <- interfaces !! i = "(Core.upcast @" <> iface <> " " <> a <> ")"
+        | Just (_, True) <- interfaces !! i = "(Core.orNull " <> a <> ")"
         | slotConv (params !! i) == Plain = a
         | otherwise = a <> "'"
         where
           a = args !! i
-      callArgs = ["r" | slotConv ret == ByRef] ++ map argIn [0 .. n - 1]
-      call = T.unwords (callName : procName : callArgs)
+      (target, thisArg) = case callee of
+        Export _ -> (procName, [])
+        Method {} -> ("f", ["this"])
+      callArgs = thisArg ++ ["r" | slotConv ret == ByRef] ++ map argIn [0 .. n - 1]
+      call = T.unwords (callName : target : callArgs)
       result = case slotConv ret of
         Plain -> call
         AsWord -> call <> " P.>>= Core.wordToStruct"
@@ -520,6 +648,7 @@ emitFunction sys ctx frees name m = do
             <> free
             <> " (F.castPtr p)) "
             <> (if hr then "(Core.check r)" else "(P.pure ())")
+        Query {} -> "Core.query (\\riid o -> " <> result <> ")"
       shapeResult = case shape of
         Raw -> slotHs ret
         CheckHResult -> "()"
@@ -527,6 +656,7 @@ emitFunction sys ctx frees name m = do
         CheckHandle {} -> slotHs ret
         ReturnOut _ t -> t
         ReturnString {} -> "Core.OsString"
+        Query {} -> "t"
       -- String buffers are read after the call and returned after its
       -- result.
       bufferReads = [(args !! b, args !! c) | (b, (c, _, _)) <- Map.toList buffers]
@@ -548,23 +678,38 @@ emitFunction sys ctx frees name m = do
         | null bufferReads = shapeResult
         | otherwise = tuple ([shapeResult | keepResult] ++ ["Core.OsString" | _ <- bufferReads])
       wrappers =
-        [w | i <- hsIndices, Just w <- [wrapper (args !! i) (slotConv (params !! i)) (strings !! i)]]
+        [ "Core.vtableEntry this " <> tshow k <> " P.>>= \\f ->"
+        | Method _ k <- [callee]
+        ]
+          ++ [w | i <- hsIndices, Just w <- [wrapper (args !! i) (slotConv (params !! i)) (strings !! i)]]
           ++ ["Core.withWideBuffer " <> c <> " P.$ \\" <> b <> " ->" | (b, c) <- bufferReads]
       wrapper a conv str = case (str, conv) of
         (Just _, _) -> Just ("Core.withWideString " <> a <> " P.$ \\" <> a <> "' ->")
         (_, AsWord) -> Just ("Core.structToWord " <> a <> " P.>>= \\" <> a <> "' ->")
         (_, ByRef) -> Just ("Core.withStructCopy " <> a <> " P.$ \\" <> a <> "' ->")
         (_, Plain) -> Nothing
-      argTypes = [Map.findWithDefault (slotHs (params !! i)) i stringVars | i <- hsIndices]
-      constraint = case Map.elems stringVars of
+      argType i
+        | Just v <- Map.lookup i stringVars = v
+        | Just v <- Map.lookup i interfaceVars = v
+        | Just (iface, True) <- interfaces !! i = "P.Maybe " <> iface
+        | otherwise = slotHs (params !! i)
+      argTypes = ["this" | isJust this] ++ map argType hsIndices
+      constraints =
+        ["Core.Inherits " <> iface <> " this" | Just iface <- [this]]
+          ++ ["Core.Interface t" | Query {} <- [shape]]
+          ++ ["Core.Inherits " <> iface <> " " <> (interfaceVars Map.! i) | (i, Just (iface, False)) <- zip [0 ..] interfaces]
+          ++ ["Core.WideString " <> v | v <- Map.elems stringVars]
+      constraint = case constraints of
         [] -> ""
-        [v] -> "Core.WideString " <> v <> " => "
-        vs -> "(" <> T.intercalate ", " ["Core.WideString " <> v | v <- vs] <> ") => "
+        [c] -> c <> " => "
+        cs -> "(" <> T.intercalate ", " cs <> ") => "
       hsSig = constraint <> T.intercalate " -> " (argTypes ++ ["IO " <> atom hsResult])
+      thisPat = ["(Core.upcast @" <> iface <> " -> this)" | Just iface <- [this]]
       optionalStrings = [o | Just (_, Just o) <- strings]
+      optionalInterfaces = [paramName p | (i, Just (_, True)) <- zip [1 ..] interfaces, Just p <- [paramAt m i]]
       stringComment =
-        [ "-- | Optional: " <> T.intercalate ", " ["@" <> o <> "@" | o <- optionalStrings] <> " can be @Nothing@ (NULL)."
-        | not (null optionalStrings)
+        [ "-- | Optional: " <> T.intercalate ", " ["@" <> o <> "@" | o <- optionalStrings ++ optionalInterfaces] <> " can be @Nothing@ (NULL)."
+        | not (null optionalStrings && null optionalInterfaces)
         ]
       bufferComment =
         [ "-- | Returns the string written to @" <> bn <> "@, up to its first NUL. The wrapper allocates that buffer with room for @" <> cn <> "@ UTF-16 units."
@@ -578,9 +723,23 @@ emitFunction sys ctx frees name m = do
              , isPwstr t
              , let o = paramName p
              ]
-      dll = moduleRefName (implMapScope im)
-      entry = implMapImportName im
-  unless (T.all (\c -> c /= '"' && c /= '\\') (dll <> entry)) $ Left "unexpected characters in DLL or entry point name"
+      foreignImport =
+        [ "foreign import ccall safe \"dynamic\""
+        , "  " <> callName <> " :: FunPtr (" <> ffiType <> ") -> " <> ffiType
+        ]
+  tail' <- case callee of
+    Method {} -> Right foreignImport
+    Export im -> do
+      let dll = moduleRefName (implMapScope im)
+          entry = implMapImportName im
+      unless (T.all (\c -> c /= '"' && c /= '\\') (dll <> entry)) $ Left "unexpected characters in DLL or entry point name"
+      Right $
+        [ procName <> " :: FunPtr (" <> ffiType <> ")"
+        , procName <> " = U.unsafePerformIO (Core.resolveProc \"" <> dll <> "\" \"" <> entry <> "\")"
+        , "{-# NOINLINE " <> procName <> " #-}"
+        , ""
+        ]
+          ++ foreignImport
   Right
     Decl
       { declExports = [name]
@@ -588,18 +747,33 @@ emitFunction sys ctx frees name m = do
           T.unlines $
             commentLines (docComment m ++ shapeComment shape ++ bufferComment ++ stringComment)
               ++ [ name <> " :: " <> hsSig
-                 , T.unwords (name : map (args !!) hsIndices) <> " ="
+                 , T.unwords (name : thisPat ++ map (args !!) hsIndices) <> " ="
                  ]
               ++ map ("  " <>) (wrappers ++ [final])
-              ++ [ ""
-                 , procName <> " :: FunPtr (" <> ffiType <> ")"
-                 , procName <> " = U.unsafePerformIO (Core.resolveProc \"" <> dll <> "\" \"" <> entry <> "\")"
-                 , "{-# NOINLINE " <> procName <> " #-}"
-                 , ""
-                 , "foreign import ccall safe \"dynamic\""
-                 , "  " <> callName <> " :: FunPtr (" <> ffiType <> ") -> " <> ffiType
-                 ]
+              ++ [""]
+              ++ tail'
       }
+
+-- | The parameter row with this sequence number (1 for the first).
+paramAt :: MethodDef -> Int -> Maybe Param
+paramAt m i = find ((== i) . fromIntegral . paramSequence) (methodParams m)
+
+-- | An interface the function only reads: an @[In]@ parameter whose type
+-- is an interface. The wrapper takes any interface that derives from it
+-- ('Windows.Core.Inherits'), or @Maybe@ the interface where it is
+-- optional, as windows-rs takes a @Param@. Gives the interface's name and
+-- whether it is optional.
+interfaceParam :: Ctx -> MethodDef -> (Int, Type) -> Either String (Maybe (Text, Bool))
+interfaceParam ctx m (i, ty) = case (strip ty, paramAt m i) of
+  (TClass r, Just p)
+    | Right (TargetDef d) <- resolveTarget r
+    , classify d == KInterface
+    , let fl = paramFlags p
+    , hasFlag paramIn fl
+    , not (hasFlag paramOut fl) -> do
+        iface <- typeName ctx d
+        Right (Just (iface, hasFlag paramOptional fl))
+  _ -> Right Nothing
 
 -- | Buffers the function writes a string to: an @[Out] PWSTR@ parameter
 -- whose size in UTF-16 units is an integer parameter (@NativeArrayInfo@
@@ -688,6 +862,10 @@ wideParam ctx m (i, ty) = case (strip ty, find ((== i) . fromIntegral . paramSeq
 --   'Windows.Core.lastError';
 -- * a handle from a function that sets the last error: an invalid handle
 --   (an @InvalidHandleValue@, or null when the type names none) throws;
+-- * an IID and an interface pointer that the function writes for it
+--   (@riid@ and @[ComOutPtr] void**@, as in @CoCreateInstance@), for
+--   functions returning @HRESULT@: the wrapper is generic in the interface,
+--   passes its IID and returns it (@SignatureKind::Query@);
 -- * a last parameter that is only an output (see 'isRetval'), for
 --   functions returning @HRESULT@ or nothing: allocated by the wrapper and
 --   returned.
@@ -709,6 +887,8 @@ data Shape
     -- the result is an @HRESULT@ to check, the constructor of @PWSTR@, and
     -- the function that frees the string (from @FreeWith@).
     ReturnString Bool Text Text
+  | -- | The positions of the IID parameter and of the interface pointer.
+    Query Int Int
 
 -- | Join a documentation link and a note on the wrapper into one Haddock
 -- comment.
@@ -729,16 +909,19 @@ shapeComment = \case
   ReturnOut False _ -> ["-- | Returns the last parameter."]
   ReturnString True _ free -> ["-- | Returns the string in the last parameter, and frees it with '" <> free <> "'. Throws 'Core.WindowsError' if the result is a failure."]
   ReturnString False _ free -> ["-- | Returns the string in the last parameter, and frees it with '" <> free <> "'."]
+  Query {} -> ["-- | Returns the interface @t@ (choose it with a type application such as @\\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure."]
 
-functionShape :: Ctx -> Map Text (Text, MethodDef) -> MethodDef -> ImplMap -> MethodSig -> Either String Shape
-functionShape ctx frees m im sig
+functionShape :: Ctx -> Map Text (Text, MethodDef) -> MethodDef -> Bool -> MethodSig -> Either String Shape
+functionShape ctx frees m lastError sig
   | hasAttribute "CanReturnMultipleSuccessValuesAttribute" m = Right Raw
   | otherwise = case strip (sigReturnType sig) of
       TVoid | retval -> returned False
       TValueType r
         | Right (TargetDef d) <- resolveTarget r -> case () of
             _
-              | coreType d == Just "HRESULT" -> if retval then returned True else Right CheckHResult
+              | coreType d == Just "HRESULT" -> case query of
+                  Just (g, o) -> Right (Query g o)
+                  Nothing -> if retval then returned True else Right CheckHResult
               | (typeDefNamespace d, typeDefName d) == ("Windows.Win32.Foundation", "BOOL")
               , lastError ->
                   CheckBool <$> typeName ctx d
@@ -751,8 +934,30 @@ functionShape ctx frees m im sig
               | otherwise -> Right Raw
       _ -> Right Raw
   where
-    lastError = hasFlag pinvokeSupportsLastError (implMapFlags im)
     rows = Map.fromList [(paramSequence p, p) | p <- methodParams m]
+    flagsAt i = maybe 0 paramFlags (Map.lookup (fromIntegral i + 1) rows)
+    -- windows-rs 0.58 @signature_param_is_query@: the last @const GUID*@
+    -- that is not an output, and the last @void**@ marked @ComOutPtr@. An
+    -- optional one (@QueryOptional@ there) is left as it is.
+    query = case ( findIndices isGuidIn (zip [0 ..] (sigParams sig))
+                 , findIndices isObject (zip [0 ..] (sigParams sig))
+                 ) of
+      (gs@(_ : _), os@(_ : _))
+        | o <- last os
+        , not (hasFlag paramOptional (flagsAt o)) ->
+            Just (last gs, o)
+      _ -> Nothing
+    isGuidIn (i, t) = case strip t of
+      TPtr g
+        | TValueType r <- strip g ->
+            resolveTarget r == Right TargetGuid && not (hasFlag paramOut (flagsAt (i :: Int)))
+      _ -> False
+    isObject (i, t) = case strip t of
+      TPtr p
+        | TPtr v <- strip p
+        , TVoid <- strip v ->
+            maybe False (hasAttribute "ComOutPtrAttribute") (Map.lookup (fromIntegral (i :: Int) + 1) rows)
+      _ -> False
     n = length (sigParams sig)
     lastType = strip (last (sigParams sig))
     -- windows-rs 0.58 @is_retval@: win32metadata rarely uses @RetVal@, so
@@ -934,10 +1139,11 @@ constantLit ctx f
       inits <- parseInit s
       initLit ctx (fieldType f) inits
   | otherwise = Left "constant has no value"
-  where
-    attrInteger = \case
-      AttrValue v -> valueInteger v
-      _ -> Nothing
+
+attrInteger :: AttributeValue -> Maybe Integer
+attrInteger = \case
+  AttrValue v -> valueInteger v
+  _ -> Nothing
 
 -- | A numeric literal as a value of a numeric, pointer, enum or typedef type.
 scalarLit :: Ctx -> Type -> Text -> Either String Lit
@@ -1127,6 +1333,7 @@ render cfg decls =
       ++ [ "{-# LANGUAGE DataKinds #-}"
          , "{-# LANGUAGE DerivingStrategies #-}"
          , "{-# LANGUAGE DuplicateRecordFields #-}"
+         , "{-# LANGUAGE FlexibleContexts #-}"
          , "{-# LANGUAGE FlexibleInstances #-}"
          , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
          , "{-# LANGUAGE MultiParamTypeClasses #-}"
@@ -1156,7 +1363,7 @@ render cfg decls =
          , "import Prelude (Double, Float, IO)"
          , "import Prelude qualified as P"
          , "import System.IO.Unsafe qualified as U"
-         , "import Windows.Core (FixedArray (..), GUID (..), HRESULT (..))"
+         , "import Windows.Core (FixedArray (..), GUID (..), HRESULT (..), IUnknown (..))"
          , "import Windows.Core qualified as Core"
          ]
       ++ concat [["", T.stripEnd (declBody d)] | d <- decls, not (T.null (declBody d))]

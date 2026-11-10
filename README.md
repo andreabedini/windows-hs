@@ -15,8 +15,8 @@ runtime library that the generated code uses.
 > **Status:** early development, not yet on Hackage. Functions, constants,
 > enums, structs, unions and callbacks generate, compile, and have the struct
 > layouts of the Windows headers for every function Hackage's `Win32` package
-> binds. The sample program runs on Windows 11 with GHC 9.12. COM interfaces
-> are opaque types without methods, and WinRT is out of scope.
+> binds. COM interfaces generate with their methods. The sample program runs
+> on Windows 11 with GHC 9.12. WinRT is out of scope.
 
 ## Why
 
@@ -41,7 +41,7 @@ newer APIs without anyone writing bindings.
 |---|---|---|
 | `winmd` | Reads `.winmd` files (ECMA-335, the .NET assembly format): tables, signatures, custom attributes | `windows-metadata` |
 | `windows-bindgen` | Generates a Haskell module with the functions, constants and types you name, and everything they depend on | `windows-bindgen` |
-| `windows-core` | Runtime for generated code: loading functions, errors, strings, structs passed by value | `windows-core`, `windows-link` |
+| `windows-core` | Runtime for generated code: loading functions, errors, strings, structs passed by value, COM interfaces | `windows-core`, `windows-link` |
 
 Design choices:
 
@@ -57,6 +57,11 @@ Design choices:
   fails, the wrapper checks it and throws `Windows.Core.WindowsError`.
   UTF-16 strings are `OsString`s. With `--sys`, every function keeps its C
   signature instead, like windows-sys.
+- **COM references are released explicitly.** An interface you receive
+  holds a reference to its object, which you give back with
+  `Windows.Core.release`, or `withCom` for a scope. The garbage collector
+  does not do it, because a reference must be released on a thread of the
+  object's apartment, and finalizers run on any thread.
 - **Independent of `Win32`.** Every type is generated from the metadata.
 - **No .NET tooling.** `winmd` reads the binary format directly.
 
@@ -82,6 +87,11 @@ HCURSOR cursor <- loadCursorW (HINSTANCE nullPtr) IDC_ARROW
 
 -- CloseHandle returns BOOL and sets the last error, so its wrapper throws.
 closed <- try @WindowsError (closeHandle (HANDLE nullPtr))
+
+-- COM: create an object, choosing the interface with a type application,
+-- and call a method of an interface IFileOpenDialog derives from.
+let create = with FileOpenDialog $ \clsid -> coCreateInstance @IFileOpenDialog clsid Nothing CLSCTX_INPROC_SERVER
+withCom create $ \dialog -> iFileDialog_SetTitle dialog [osstr|Pick a file|]
 ```
 
 On Windows, `cabal run hello` runs it.
@@ -185,7 +195,17 @@ you write `[osstr|...|]` literals.
   same way (`info.anonymous.wProcessorArchitecture`) and are built with
   `Core.setMember`.
 - **Constants** are pattern synonyms: numbers, enum values, GUIDs, strings,
-  and handles given as integers (`HKEY_LOCAL_MACHINE`).
+  and handles given as integers (`HKEY_LOCAL_MACHINE`). A COM class is the
+  `GUID` of its class identifier (`FileOpenDialog`).
+- **COM interfaces** are newtypes over the interface pointer. Each method is
+  a function named after the interface and the method
+  (`iFileDialog_SetTitle`) that takes the interface or any interface derived
+  from it. Methods follow the same rules as functions. A function that
+  returns an interface for a requested IID, such as `CoCreateInstance`,
+  returns any interface you choose with a type application, and
+  `Windows.Core.cast` asks an object for another of its interfaces
+  (`QueryInterface`). Release what you receive with `Windows.Core.release`
+  or `withCom`.
 
 ### Look at the metadata
 

@@ -6,7 +6,8 @@ description:
   The small runtime that Haskell bindings generated from win32metadata
   depend on: resolving functions from DLLs at runtime, marshalling structs
   passed by value, fixed-size arrays, GUIDs, string constants, strings
-  passed to and returned from Windows, and Windows error codes.
+  passed to and returned from Windows, Windows error codes, and COM
+  interfaces.
 
 category:        System, Windows
 license:         MIT OR Apache-2.0
@@ -39,6 +40,7 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Windows.Core
+    Windows.Core.Com
     Windows.Core.Error
     Windows.Core.FixedArray
     Windows.Core.GUID

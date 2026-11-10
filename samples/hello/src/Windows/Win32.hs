@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -14,7 +15,8 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Windows.Win32
-  ( BOOL (..)
+  ( BIND_OPTS (..)
+  , BOOL (..)
   , CLSCTX (..)
   , pattern CLSCTX_INPROC_SERVER
   , pattern CLSCTX_INPROC_HANDLER
@@ -48,6 +50,65 @@ module Windows.Win32
   , pattern CLSCTX_PS_DLL
   , pattern CLSCTX_ALL
   , pattern CLSCTX_SERVER
+  , COINIT (..)
+  , pattern COINIT_APARTMENTTHREADED
+  , pattern COINIT_MULTITHREADED
+  , pattern COINIT_DISABLE_OLE1DDE
+  , pattern COINIT_SPEED_OVER_MEMORY
+  , COMDLG_FILTERSPEC (..)
+  , FDAP (..)
+  , pattern FDAP_BOTTOM
+  , pattern FDAP_TOP
+  , FDE_OVERWRITE_RESPONSE (..)
+  , pattern FDEOR_DEFAULT
+  , pattern FDEOR_ACCEPT
+  , pattern FDEOR_REFUSE
+  , FDE_SHAREVIOLATION_RESPONSE (..)
+  , pattern FDESVR_DEFAULT
+  , pattern FDESVR_ACCEPT
+  , pattern FDESVR_REFUSE
+  , FILEOPENDIALOGOPTIONS (..)
+  , pattern FOS_OVERWRITEPROMPT
+  , pattern FOS_STRICTFILETYPES
+  , pattern FOS_NOCHANGEDIR
+  , pattern FOS_PICKFOLDERS
+  , pattern FOS_FORCEFILESYSTEM
+  , pattern FOS_ALLNONSTORAGEITEMS
+  , pattern FOS_NOVALIDATE
+  , pattern FOS_ALLOWMULTISELECT
+  , pattern FOS_PATHMUSTEXIST
+  , pattern FOS_FILEMUSTEXIST
+  , pattern FOS_CREATEPROMPT
+  , pattern FOS_SHAREAWARE
+  , pattern FOS_NOREADONLYRETURN
+  , pattern FOS_NOTESTFILECREATE
+  , pattern FOS_HIDEMRUPLACES
+  , pattern FOS_HIDEPINNEDPLACES
+  , pattern FOS_NODEREFERENCELINKS
+  , pattern FOS_OKBUTTONNEEDSINTERACTION
+  , pattern FOS_DONTADDTORECENT
+  , pattern FOS_FORCESHOWHIDDEN
+  , pattern FOS_DEFAULTNOMINIMODE
+  , pattern FOS_FORCEPREVIEWPANEON
+  , pattern FOS_SUPPORTSTREAMABLEITEMS
+  , FILETIME (..)
+  , pattern FileOpenDialog
+  , GETPROPERTYSTOREFLAGS (..)
+  , pattern GPS_DEFAULT
+  , pattern GPS_HANDLERPROPERTIESONLY
+  , pattern GPS_READWRITE
+  , pattern GPS_TEMPORARY
+  , pattern GPS_FASTPROPERTIESONLY
+  , pattern GPS_OPENSLOWITEM
+  , pattern GPS_DELAYCREATION
+  , pattern GPS_BESTEFFORT
+  , pattern GPS_NO_OPLOCK
+  , pattern GPS_PREFERQUERYPROPERTIES
+  , pattern GPS_EXTRINSICPROPERTIES
+  , pattern GPS_EXTRINSICPROPERTIESONLY
+  , pattern GPS_VOLATILEPROPERTIES
+  , pattern GPS_VOLATILEPROPERTIESONLY
+  , pattern GPS_MASK_VALID
   , HANDLE (..)
   , HBRUSH (..)
   , HCURSOR (..)
@@ -57,8 +118,25 @@ module Windows.Win32
   , HMODULE (..)
   , HRESULT (..)
   , HWND (..)
+  , IBindCtx (..)
+  , IEnumMoniker (..)
+  , IEnumShellItems (..)
+  , IEnumString (..)
+  , IFileDialog (..)
+  , IFileDialogEvents (..)
+  , IFileOpenDialog (..)
+  , IModalWindow (..)
+  , IMoniker (..)
   , INIT_ONCE (..)
-  , IUnknown
+  , IPersist (..)
+  , IPersistStream (..)
+  , IRunningObjectTable (..)
+  , ISequentialStream (..)
+  , IShellItem (..)
+  , IShellItemArray (..)
+  , IShellItemFilter (..)
+  , IStream (..)
+  , IUnknown (..)
   , LPARAM (..)
   , LRESULT (..)
   , MESSAGEBOX_RESULT (..)
@@ -135,8 +213,89 @@ module Windows.Win32
   , PROPERTYKEY (..)
   , PSTR (..)
   , PWSTR (..)
+  , ROT_FLAGS (..)
+  , pattern ROTFLAGS_REGISTRATIONKEEPSALIVE
+  , pattern ROTFLAGS_ALLOWANYCLIENT
+  , SFGAO_FLAGS (..)
+  , pattern SFGAO_CANCOPY
+  , pattern SFGAO_CANMOVE
+  , pattern SFGAO_CANLINK
+  , pattern SFGAO_STORAGE
+  , pattern SFGAO_CANRENAME
+  , pattern SFGAO_CANDELETE
+  , pattern SFGAO_HASPROPSHEET
+  , pattern SFGAO_DROPTARGET
+  , pattern SFGAO_CAPABILITYMASK
+  , pattern SFGAO_PLACEHOLDER
+  , pattern SFGAO_SYSTEM
+  , pattern SFGAO_ENCRYPTED
+  , pattern SFGAO_ISSLOW
+  , pattern SFGAO_GHOSTED
+  , pattern SFGAO_LINK
+  , pattern SFGAO_SHARE
+  , pattern SFGAO_READONLY
+  , pattern SFGAO_HIDDEN
+  , pattern SFGAO_DISPLAYATTRMASK
+  , pattern SFGAO_FILESYSANCESTOR
+  , pattern SFGAO_FOLDER
+  , pattern SFGAO_FILESYSTEM
+  , pattern SFGAO_HASSUBFOLDER
+  , pattern SFGAO_CONTENTSMASK
+  , pattern SFGAO_VALIDATE
+  , pattern SFGAO_REMOVABLE
+  , pattern SFGAO_COMPRESSED
+  , pattern SFGAO_BROWSABLE
+  , pattern SFGAO_NONENUMERATED
+  , pattern SFGAO_NEWCONTENT
+  , pattern SFGAO_CANMONIKER
+  , pattern SFGAO_HASSTORAGE
+  , pattern SFGAO_STREAM
+  , pattern SFGAO_STORAGEANCESTOR
+  , pattern SFGAO_STORAGECAPMASK
+  , pattern SFGAO_PKEYSFGAOMASK
+  , SIATTRIBFLAGS (..)
+  , pattern SIATTRIBFLAGS_AND
+  , pattern SIATTRIBFLAGS_OR
+  , pattern SIATTRIBFLAGS_APPCOMPAT
+  , pattern SIATTRIBFLAGS_MASK
+  , pattern SIATTRIBFLAGS_ALLITEMS
   , SID_IDENTIFIER_AUTHORITY (..)
+  , SIGDN (..)
+  , pattern SIGDN_NORMALDISPLAY
+  , pattern SIGDN_PARENTRELATIVEPARSING
+  , pattern SIGDN_DESKTOPABSOLUTEPARSING
+  , pattern SIGDN_PARENTRELATIVEEDITING
+  , pattern SIGDN_DESKTOPABSOLUTEEDITING
+  , pattern SIGDN_FILESYSPATH
+  , pattern SIGDN_URL
+  , pattern SIGDN_PARENTRELATIVEFORADDRESSBAR
+  , pattern SIGDN_PARENTRELATIVE
+  , pattern SIGDN_PARENTRELATIVEFORUI
   , SRWLOCK (..)
+  , STATSTG (..)
+  , STGM (..)
+  , pattern STGM_DIRECT
+  , pattern STGM_TRANSACTED
+  , pattern STGM_SIMPLE
+  , pattern STGM_READ
+  , pattern STGM_WRITE
+  , pattern STGM_READWRITE
+  , pattern STGM_SHARE_DENY_NONE
+  , pattern STGM_SHARE_DENY_READ
+  , pattern STGM_SHARE_DENY_WRITE
+  , pattern STGM_SHARE_EXCLUSIVE
+  , pattern STGM_PRIORITY
+  , pattern STGM_DELETEONRELEASE
+  , pattern STGM_NOSCRATCH
+  , pattern STGM_CREATE
+  , pattern STGM_CONVERT
+  , pattern STGM_FAILIFTHERE
+  , pattern STGM_NOSNAPSHOT
+  , pattern STGM_DIRECT_SWMR
+  , STREAM_SEEK (..)
+  , pattern STREAM_SEEK_SET
+  , pattern STREAM_SEEK_CUR
+  , pattern STREAM_SEEK_END
   , SYSTEM_INFO (..)
   , SYSTEM_INFO_0 (..)
   , SYSTEM_INFO_0_0 (..)
@@ -173,7 +332,9 @@ module Windows.Win32
   , pattern WC_BUTTONW
   , closeHandle
   , coCreateInstance
+  , coInitializeEx
   , coTaskMemFree
+  , coUninitialize
   , getCurrentDirectoryW
   , getFileAttributesW
   , getModuleFileNameW
@@ -187,6 +348,113 @@ module Windows.Win32
   , windowFromPoint
   , lstrlenA
   , lstrlenW
+  , iBindCtx_RegisterObjectBound
+  , iBindCtx_RevokeObjectBound
+  , iBindCtx_ReleaseBoundObjects
+  , iBindCtx_SetBindOptions
+  , iBindCtx_GetBindOptions
+  , iBindCtx_GetRunningObjectTable
+  , iBindCtx_RegisterObjectParam
+  , iBindCtx_GetObjectParam
+  , iBindCtx_EnumObjectParam
+  , iBindCtx_RevokeObjectParam
+  , iEnumMoniker_Next
+  , iEnumMoniker_Skip
+  , iEnumMoniker_Reset
+  , iEnumMoniker_Clone
+  , iEnumShellItems_Next
+  , iEnumShellItems_Skip
+  , iEnumShellItems_Reset
+  , iEnumShellItems_Clone
+  , iEnumString_Next
+  , iEnumString_Skip
+  , iEnumString_Reset
+  , iEnumString_Clone
+  , iFileDialog_SetFileTypes
+  , iFileDialog_SetFileTypeIndex
+  , iFileDialog_GetFileTypeIndex
+  , iFileDialog_Advise
+  , iFileDialog_Unadvise
+  , iFileDialog_SetOptions
+  , iFileDialog_GetOptions
+  , iFileDialog_SetDefaultFolder
+  , iFileDialog_SetFolder
+  , iFileDialog_GetFolder
+  , iFileDialog_GetCurrentSelection
+  , iFileDialog_SetFileName
+  , iFileDialog_GetFileName
+  , iFileDialog_SetTitle
+  , iFileDialog_SetOkButtonLabel
+  , iFileDialog_SetFileNameLabel
+  , iFileDialog_GetResult
+  , iFileDialog_AddPlace
+  , iFileDialog_SetDefaultExtension
+  , iFileDialog_Close
+  , iFileDialog_SetClientGuid
+  , iFileDialog_ClearClientData
+  , iFileDialog_SetFilter
+  , iFileDialogEvents_OnFileOk
+  , iFileDialogEvents_OnFolderChanging
+  , iFileDialogEvents_OnFolderChange
+  , iFileDialogEvents_OnSelectionChange
+  , iFileDialogEvents_OnShareViolation
+  , iFileDialogEvents_OnTypeChange
+  , iFileDialogEvents_OnOverwrite
+  , iFileOpenDialog_GetResults
+  , iFileOpenDialog_GetSelectedItems
+  , iModalWindow_Show
+  , iMoniker_BindToObject
+  , iMoniker_BindToStorage
+  , iMoniker_Reduce
+  , iMoniker_ComposeWith
+  , iMoniker_Enum
+  , iMoniker_IsEqual
+  , iMoniker_Hash
+  , iMoniker_IsRunning
+  , iMoniker_GetTimeOfLastChange
+  , iMoniker_Inverse
+  , iMoniker_CommonPrefixWith
+  , iMoniker_RelativePathTo
+  , iMoniker_GetDisplayName
+  , iMoniker_ParseDisplayName
+  , iMoniker_IsSystemMoniker
+  , iPersist_GetClassID
+  , iPersistStream_IsDirty
+  , iPersistStream_Load
+  , iPersistStream_Save
+  , iPersistStream_GetSizeMax
+  , iRunningObjectTable_Register
+  , iRunningObjectTable_Revoke
+  , iRunningObjectTable_IsRunning
+  , iRunningObjectTable_GetObject
+  , iRunningObjectTable_NoteChangeTime
+  , iRunningObjectTable_GetTimeOfLastChange
+  , iRunningObjectTable_EnumRunning
+  , iSequentialStream_Read
+  , iSequentialStream_Write
+  , iShellItem_BindToHandler
+  , iShellItem_GetParent
+  , iShellItem_GetDisplayName
+  , iShellItem_GetAttributes
+  , iShellItem_Compare
+  , iShellItemArray_BindToHandler
+  , iShellItemArray_GetPropertyStore
+  , iShellItemArray_GetPropertyDescriptionList
+  , iShellItemArray_GetAttributes
+  , iShellItemArray_GetCount
+  , iShellItemArray_GetItemAt
+  , iShellItemArray_EnumItems
+  , iShellItemFilter_IncludeItem
+  , iShellItemFilter_GetEnumFlagsForItem
+  , iStream_Seek
+  , iStream_SetSize
+  , iStream_CopyTo
+  , iStream_Commit
+  , iStream_Revert
+  , iStream_LockRegion
+  , iStream_UnlockRegion
+  , iStream_Stat
+  , iStream_Clone
   ) where
 
 import Data.Bits qualified as B
@@ -201,8 +469,23 @@ import GHC.Records qualified as R
 import Prelude (Double, Float, IO)
 import Prelude qualified as P
 import System.IO.Unsafe qualified as U
-import Windows.Core (FixedArray (..), GUID (..), HRESULT (..))
+import Windows.Core (FixedArray (..), GUID (..), HRESULT (..), IUnknown (..))
 import Windows.Core qualified as Core
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/ns-objidl-bind_opts>
+data BIND_OPTS = BIND_OPTS
+  { cbStruct :: !Word32
+  , grfFlags :: !Word32
+  , grfMode :: !Word32
+  , dwTickCountDeadline :: !Word32
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable BIND_OPTS where
+  sizeOf _ = 16
+  alignment _ = 4
+  peek p = BIND_OPTS P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 4 P.<*> S.peekByteOff p 8 P.<*> S.peekByteOff p 12
+  poke p (BIND_OPTS f0 f1 f2 f3) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 4 f1 P.>> S.pokeByteOff p 8 f2 P.>> S.pokeByteOff p 12 f3
 
 newtype BOOL = BOOL Int32
   deriving stock (P.Show)
@@ -309,6 +592,215 @@ pattern CLSCTX_ALL = CLSCTX 23
 pattern CLSCTX_SERVER :: CLSCTX
 pattern CLSCTX_SERVER = CLSCTX 21
 
+-- | <https://learn.microsoft.com/windows/win32/api/objbase/ne-objbase-coinit>
+newtype COINIT = COINIT Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern COINIT_APARTMENTTHREADED :: COINIT
+pattern COINIT_APARTMENTTHREADED = COINIT 2
+
+pattern COINIT_MULTITHREADED :: COINIT
+pattern COINIT_MULTITHREADED = COINIT 0
+
+pattern COINIT_DISABLE_OLE1DDE :: COINIT
+pattern COINIT_DISABLE_OLE1DDE = COINIT 4
+
+pattern COINIT_SPEED_OVER_MEMORY :: COINIT
+pattern COINIT_SPEED_OVER_MEMORY = COINIT 8
+
+-- | <https://learn.microsoft.com/windows/win32/api/shtypes/ns-shtypes-comdlg_filterspec>
+data COMDLG_FILTERSPEC = COMDLG_FILTERSPEC
+  { pszName :: !PWSTR
+  , pszSpec :: !PWSTR
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable COMDLG_FILTERSPEC where
+  sizeOf _ = 16
+  alignment _ = 8
+  peek p = COMDLG_FILTERSPEC P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 8
+  poke p (COMDLG_FILTERSPEC f0 f1) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 8 f1
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/ne-shobjidl_core-fdap>
+newtype FDAP = FDAP Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+pattern FDAP_BOTTOM :: FDAP
+pattern FDAP_BOTTOM = FDAP 0
+
+pattern FDAP_TOP :: FDAP
+pattern FDAP_TOP = FDAP 1
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/ne-shobjidl_core-fde_overwrite_response>
+newtype FDE_OVERWRITE_RESPONSE = FDE_OVERWRITE_RESPONSE Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+pattern FDEOR_DEFAULT :: FDE_OVERWRITE_RESPONSE
+pattern FDEOR_DEFAULT = FDE_OVERWRITE_RESPONSE 0
+
+pattern FDEOR_ACCEPT :: FDE_OVERWRITE_RESPONSE
+pattern FDEOR_ACCEPT = FDE_OVERWRITE_RESPONSE 1
+
+pattern FDEOR_REFUSE :: FDE_OVERWRITE_RESPONSE
+pattern FDEOR_REFUSE = FDE_OVERWRITE_RESPONSE 2
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/ne-shobjidl_core-fde_shareviolation_response>
+newtype FDE_SHAREVIOLATION_RESPONSE = FDE_SHAREVIOLATION_RESPONSE Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+pattern FDESVR_DEFAULT :: FDE_SHAREVIOLATION_RESPONSE
+pattern FDESVR_DEFAULT = FDE_SHAREVIOLATION_RESPONSE 0
+
+pattern FDESVR_ACCEPT :: FDE_SHAREVIOLATION_RESPONSE
+pattern FDESVR_ACCEPT = FDE_SHAREVIOLATION_RESPONSE 1
+
+pattern FDESVR_REFUSE :: FDE_SHAREVIOLATION_RESPONSE
+pattern FDESVR_REFUSE = FDE_SHAREVIOLATION_RESPONSE 2
+
+newtype FILEOPENDIALOGOPTIONS = FILEOPENDIALOGOPTIONS Word32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern FOS_OVERWRITEPROMPT :: FILEOPENDIALOGOPTIONS
+pattern FOS_OVERWRITEPROMPT = FILEOPENDIALOGOPTIONS 2
+
+pattern FOS_STRICTFILETYPES :: FILEOPENDIALOGOPTIONS
+pattern FOS_STRICTFILETYPES = FILEOPENDIALOGOPTIONS 4
+
+pattern FOS_NOCHANGEDIR :: FILEOPENDIALOGOPTIONS
+pattern FOS_NOCHANGEDIR = FILEOPENDIALOGOPTIONS 8
+
+pattern FOS_PICKFOLDERS :: FILEOPENDIALOGOPTIONS
+pattern FOS_PICKFOLDERS = FILEOPENDIALOGOPTIONS 32
+
+pattern FOS_FORCEFILESYSTEM :: FILEOPENDIALOGOPTIONS
+pattern FOS_FORCEFILESYSTEM = FILEOPENDIALOGOPTIONS 64
+
+pattern FOS_ALLNONSTORAGEITEMS :: FILEOPENDIALOGOPTIONS
+pattern FOS_ALLNONSTORAGEITEMS = FILEOPENDIALOGOPTIONS 128
+
+pattern FOS_NOVALIDATE :: FILEOPENDIALOGOPTIONS
+pattern FOS_NOVALIDATE = FILEOPENDIALOGOPTIONS 256
+
+pattern FOS_ALLOWMULTISELECT :: FILEOPENDIALOGOPTIONS
+pattern FOS_ALLOWMULTISELECT = FILEOPENDIALOGOPTIONS 512
+
+pattern FOS_PATHMUSTEXIST :: FILEOPENDIALOGOPTIONS
+pattern FOS_PATHMUSTEXIST = FILEOPENDIALOGOPTIONS 2048
+
+pattern FOS_FILEMUSTEXIST :: FILEOPENDIALOGOPTIONS
+pattern FOS_FILEMUSTEXIST = FILEOPENDIALOGOPTIONS 4096
+
+pattern FOS_CREATEPROMPT :: FILEOPENDIALOGOPTIONS
+pattern FOS_CREATEPROMPT = FILEOPENDIALOGOPTIONS 8192
+
+pattern FOS_SHAREAWARE :: FILEOPENDIALOGOPTIONS
+pattern FOS_SHAREAWARE = FILEOPENDIALOGOPTIONS 16384
+
+pattern FOS_NOREADONLYRETURN :: FILEOPENDIALOGOPTIONS
+pattern FOS_NOREADONLYRETURN = FILEOPENDIALOGOPTIONS 32768
+
+pattern FOS_NOTESTFILECREATE :: FILEOPENDIALOGOPTIONS
+pattern FOS_NOTESTFILECREATE = FILEOPENDIALOGOPTIONS 65536
+
+pattern FOS_HIDEMRUPLACES :: FILEOPENDIALOGOPTIONS
+pattern FOS_HIDEMRUPLACES = FILEOPENDIALOGOPTIONS 131072
+
+pattern FOS_HIDEPINNEDPLACES :: FILEOPENDIALOGOPTIONS
+pattern FOS_HIDEPINNEDPLACES = FILEOPENDIALOGOPTIONS 262144
+
+pattern FOS_NODEREFERENCELINKS :: FILEOPENDIALOGOPTIONS
+pattern FOS_NODEREFERENCELINKS = FILEOPENDIALOGOPTIONS 1048576
+
+pattern FOS_OKBUTTONNEEDSINTERACTION :: FILEOPENDIALOGOPTIONS
+pattern FOS_OKBUTTONNEEDSINTERACTION = FILEOPENDIALOGOPTIONS 2097152
+
+pattern FOS_DONTADDTORECENT :: FILEOPENDIALOGOPTIONS
+pattern FOS_DONTADDTORECENT = FILEOPENDIALOGOPTIONS 33554432
+
+pattern FOS_FORCESHOWHIDDEN :: FILEOPENDIALOGOPTIONS
+pattern FOS_FORCESHOWHIDDEN = FILEOPENDIALOGOPTIONS 268435456
+
+pattern FOS_DEFAULTNOMINIMODE :: FILEOPENDIALOGOPTIONS
+pattern FOS_DEFAULTNOMINIMODE = FILEOPENDIALOGOPTIONS 536870912
+
+pattern FOS_FORCEPREVIEWPANEON :: FILEOPENDIALOGOPTIONS
+pattern FOS_FORCEPREVIEWPANEON = FILEOPENDIALOGOPTIONS 1073741824
+
+pattern FOS_SUPPORTSTREAMABLEITEMS :: FILEOPENDIALOGOPTIONS
+pattern FOS_SUPPORTSTREAMABLEITEMS = FILEOPENDIALOGOPTIONS 2147483648
+
+-- | <https://learn.microsoft.com/office/client-developer/outlook/mapi/filetime>
+data FILETIME = FILETIME
+  { dwLowDateTime :: !Word32
+  , dwHighDateTime :: !Word32
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable FILETIME where
+  sizeOf _ = 8
+  alignment _ = 4
+  peek p = FILETIME P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 4
+  poke p (FILETIME f0 f1) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 4 f1
+
+-- | The class identifier (CLSID) of the COM class FileOpenDialog.
+pattern FileOpenDialog :: GUID
+pattern FileOpenDialog = GUID 0xdc1c5a9c 0xe88a 0x4dde (FixedArray [0xa5, 0xa1, 0x60, 0xf8, 0x2a, 0x20, 0xae, 0xf7])
+
+-- | <https://learn.microsoft.com/windows/win32/api/propsys/ne-propsys-getpropertystoreflags>
+newtype GETPROPERTYSTOREFLAGS = GETPROPERTYSTOREFLAGS Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern GPS_DEFAULT :: GETPROPERTYSTOREFLAGS
+pattern GPS_DEFAULT = GETPROPERTYSTOREFLAGS 0
+
+pattern GPS_HANDLERPROPERTIESONLY :: GETPROPERTYSTOREFLAGS
+pattern GPS_HANDLERPROPERTIESONLY = GETPROPERTYSTOREFLAGS 1
+
+pattern GPS_READWRITE :: GETPROPERTYSTOREFLAGS
+pattern GPS_READWRITE = GETPROPERTYSTOREFLAGS 2
+
+pattern GPS_TEMPORARY :: GETPROPERTYSTOREFLAGS
+pattern GPS_TEMPORARY = GETPROPERTYSTOREFLAGS 4
+
+pattern GPS_FASTPROPERTIESONLY :: GETPROPERTYSTOREFLAGS
+pattern GPS_FASTPROPERTIESONLY = GETPROPERTYSTOREFLAGS 8
+
+pattern GPS_OPENSLOWITEM :: GETPROPERTYSTOREFLAGS
+pattern GPS_OPENSLOWITEM = GETPROPERTYSTOREFLAGS 16
+
+pattern GPS_DELAYCREATION :: GETPROPERTYSTOREFLAGS
+pattern GPS_DELAYCREATION = GETPROPERTYSTOREFLAGS 32
+
+pattern GPS_BESTEFFORT :: GETPROPERTYSTOREFLAGS
+pattern GPS_BESTEFFORT = GETPROPERTYSTOREFLAGS 64
+
+pattern GPS_NO_OPLOCK :: GETPROPERTYSTOREFLAGS
+pattern GPS_NO_OPLOCK = GETPROPERTYSTOREFLAGS 128
+
+pattern GPS_PREFERQUERYPROPERTIES :: GETPROPERTYSTOREFLAGS
+pattern GPS_PREFERQUERYPROPERTIES = GETPROPERTYSTOREFLAGS 256
+
+pattern GPS_EXTRINSICPROPERTIES :: GETPROPERTYSTOREFLAGS
+pattern GPS_EXTRINSICPROPERTIES = GETPROPERTYSTOREFLAGS 512
+
+pattern GPS_EXTRINSICPROPERTIESONLY :: GETPROPERTYSTOREFLAGS
+pattern GPS_EXTRINSICPROPERTIESONLY = GETPROPERTYSTOREFLAGS 1024
+
+pattern GPS_VOLATILEPROPERTIES :: GETPROPERTYSTOREFLAGS
+pattern GPS_VOLATILEPROPERTIES = GETPROPERTYSTOREFLAGS 2048
+
+pattern GPS_VOLATILEPROPERTIESONLY :: GETPROPERTYSTOREFLAGS
+pattern GPS_VOLATILEPROPERTIESONLY = GETPROPERTYSTOREFLAGS 4096
+
+pattern GPS_MASK_VALID :: GETPROPERTYSTOREFLAGS
+pattern GPS_MASK_VALID = GETPROPERTYSTOREFLAGS 8191
+
 newtype HANDLE = HANDLE (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
@@ -341,6 +833,169 @@ newtype HWND = HWND (Ptr ())
   deriving stock (P.Show)
   deriving newtype (P.Eq, P.Ord, S.Storable)
 
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-ibindctx>
+--
+-- A COM interface. Its methods are the functions named @iBindCtx_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IBindCtx = IBindCtx (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IBindCtx where
+  interfaceId = GUID 0xe 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IBindCtx p) = p
+  fromRaw = IBindCtx
+
+instance Core.Inherits IBindCtx IBindCtx
+
+instance Core.Inherits IUnknown IBindCtx
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-ienummoniker>
+--
+-- A COM interface. Its methods are the functions named @iEnumMoniker_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IEnumMoniker = IEnumMoniker (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IEnumMoniker where
+  interfaceId = GUID 0x102 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IEnumMoniker p) = p
+  fromRaw = IEnumMoniker
+
+instance Core.Inherits IEnumMoniker IEnumMoniker
+
+instance Core.Inherits IUnknown IEnumMoniker
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ienumshellitems>
+--
+-- A COM interface. Its methods are the functions named @iEnumShellItems_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IEnumShellItems = IEnumShellItems (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IEnumShellItems where
+  interfaceId = GUID 0x70629033 0xe363 0x4a28 (FixedArray [0xa5, 0x67, 0xd, 0xb7, 0x80, 0x6, 0xe6, 0xd7])
+  toRaw (IEnumShellItems p) = p
+  fromRaw = IEnumShellItems
+
+instance Core.Inherits IEnumShellItems IEnumShellItems
+
+instance Core.Inherits IUnknown IEnumShellItems
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidlbase/nn-objidlbase-ienumstring>
+--
+-- A COM interface. Its methods are the functions named @iEnumString_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IEnumString = IEnumString (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IEnumString where
+  interfaceId = GUID 0x101 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IEnumString p) = p
+  fromRaw = IEnumString
+
+instance Core.Inherits IEnumString IEnumString
+
+instance Core.Inherits IUnknown IEnumString
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifiledialog>
+--
+-- A COM interface. Its methods are the functions named @iFileDialog_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IFileDialog = IFileDialog (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IFileDialog where
+  interfaceId = GUID 0x42f85136 0xdb7e 0x439c (FixedArray [0x85, 0xf1, 0xe4, 0x7, 0x5d, 0x13, 0x5f, 0xc8])
+  toRaw (IFileDialog p) = p
+  fromRaw = IFileDialog
+
+instance Core.Inherits IFileDialog IFileDialog
+
+instance Core.Inherits IModalWindow IFileDialog
+
+instance Core.Inherits IUnknown IFileDialog
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifiledialogevents>
+--
+-- A COM interface. Its methods are the functions named @iFileDialogEvents_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IFileDialogEvents = IFileDialogEvents (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IFileDialogEvents where
+  interfaceId = GUID 0x973510db 0x7d7f 0x452b (FixedArray [0x89, 0x75, 0x74, 0xa8, 0x58, 0x28, 0xd3, 0x54])
+  toRaw (IFileDialogEvents p) = p
+  fromRaw = IFileDialogEvents
+
+instance Core.Inherits IFileDialogEvents IFileDialogEvents
+
+instance Core.Inherits IUnknown IFileDialogEvents
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifileopendialog>
+--
+-- A COM interface. Its methods are the functions named @iFileOpenDialog_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IFileOpenDialog = IFileOpenDialog (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IFileOpenDialog where
+  interfaceId = GUID 0xd57c7288 0xd4ad 0x4768 (FixedArray [0xbe, 0x2, 0x9d, 0x96, 0x95, 0x32, 0xd9, 0x60])
+  toRaw (IFileOpenDialog p) = p
+  fromRaw = IFileOpenDialog
+
+instance Core.Inherits IFileOpenDialog IFileOpenDialog
+
+instance Core.Inherits IFileDialog IFileOpenDialog
+
+instance Core.Inherits IModalWindow IFileOpenDialog
+
+instance Core.Inherits IUnknown IFileOpenDialog
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-imodalwindow>
+--
+-- A COM interface. Its methods are the functions named @iModalWindow_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IModalWindow = IModalWindow (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IModalWindow where
+  interfaceId = GUID 0xb4db1657 0x70d7 0x485e (FixedArray [0x8e, 0x3e, 0x6f, 0xcb, 0x5a, 0x5c, 0x18, 0x2])
+  toRaw (IModalWindow p) = p
+  fromRaw = IModalWindow
+
+instance Core.Inherits IModalWindow IModalWindow
+
+instance Core.Inherits IUnknown IModalWindow
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-imoniker>
+--
+-- A COM interface. Its methods are the functions named @iMoniker_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IMoniker = IMoniker (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IMoniker where
+  interfaceId = GUID 0xf 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IMoniker p) = p
+  fromRaw = IMoniker
+
+instance Core.Inherits IMoniker IMoniker
+
+instance Core.Inherits IPersistStream IMoniker
+
+instance Core.Inherits IPersist IMoniker
+
+instance Core.Inherits IUnknown IMoniker
+
 -- | A union or explicit-layout struct of 8 bytes. Read a member
 -- as a field (@u.member@); build one with 'Core.setMember' and 'Core.zeroed'.
 newtype INIT_ONCE = INIT_ONCE (FixedArray 8 Word8)
@@ -358,8 +1013,145 @@ instance Core.Member "ptr" INIT_ONCE (Ptr ()) where
 instance R.HasField "ptr" INIT_ONCE (Ptr ()) where
   getField = Core.getMember @"ptr"
 
--- | <https://learn.microsoft.com/windows/win32/api/unknwn/nn-unknwn-iunknown>
-data IUnknown
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-ipersist>
+--
+-- A COM interface. Its methods are the functions named @iPersist_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IPersist = IPersist (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IPersist where
+  interfaceId = GUID 0x10c 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IPersist p) = p
+  fromRaw = IPersist
+
+instance Core.Inherits IPersist IPersist
+
+instance Core.Inherits IUnknown IPersist
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-ipersiststream>
+--
+-- A COM interface. Its methods are the functions named @iPersistStream_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IPersistStream = IPersistStream (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IPersistStream where
+  interfaceId = GUID 0x109 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IPersistStream p) = p
+  fromRaw = IPersistStream
+
+instance Core.Inherits IPersistStream IPersistStream
+
+instance Core.Inherits IPersist IPersistStream
+
+instance Core.Inherits IUnknown IPersistStream
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-irunningobjecttable>
+--
+-- A COM interface. Its methods are the functions named @iRunningObjectTable_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IRunningObjectTable = IRunningObjectTable (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IRunningObjectTable where
+  interfaceId = GUID 0x10 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IRunningObjectTable p) = p
+  fromRaw = IRunningObjectTable
+
+instance Core.Inherits IRunningObjectTable IRunningObjectTable
+
+instance Core.Inherits IUnknown IRunningObjectTable
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-isequentialstream>
+--
+-- A COM interface. Its methods are the functions named @iSequentialStream_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype ISequentialStream = ISequentialStream (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface ISequentialStream where
+  interfaceId = GUID 0xc733a30 0x2a1c 0x11ce (FixedArray [0xad, 0xe5, 0x0, 0xaa, 0x0, 0x44, 0x77, 0x3d])
+  toRaw (ISequentialStream p) = p
+  fromRaw = ISequentialStream
+
+instance Core.Inherits ISequentialStream ISequentialStream
+
+instance Core.Inherits IUnknown ISequentialStream
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellitem>
+--
+-- A COM interface. Its methods are the functions named @iShellItem_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IShellItem = IShellItem (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IShellItem where
+  interfaceId = GUID 0x43826d1e 0xe718 0x42ee (FixedArray [0xbc, 0x55, 0xa1, 0xe2, 0x61, 0xc3, 0x7b, 0xfe])
+  toRaw (IShellItem p) = p
+  fromRaw = IShellItem
+
+instance Core.Inherits IShellItem IShellItem
+
+instance Core.Inherits IUnknown IShellItem
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellitemarray>
+--
+-- A COM interface. Its methods are the functions named @iShellItemArray_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IShellItemArray = IShellItemArray (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IShellItemArray where
+  interfaceId = GUID 0xb63ea76d 0x1f85 0x456f (FixedArray [0xa1, 0x9c, 0x48, 0x15, 0x9e, 0xfa, 0x85, 0x8b])
+  toRaw (IShellItemArray p) = p
+  fromRaw = IShellItemArray
+
+instance Core.Inherits IShellItemArray IShellItemArray
+
+instance Core.Inherits IUnknown IShellItemArray
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellitemfilter>
+--
+-- A COM interface. Its methods are the functions named @iShellItemFilter_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IShellItemFilter = IShellItemFilter (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IShellItemFilter where
+  interfaceId = GUID 0x2659b475 0xeeb8 0x48b7 (FixedArray [0x8f, 0x7, 0xb3, 0x78, 0x81, 0xf, 0x48, 0xcf])
+  toRaw (IShellItemFilter p) = p
+  fromRaw = IShellItemFilter
+
+instance Core.Inherits IShellItemFilter IShellItemFilter
+
+instance Core.Inherits IUnknown IShellItemFilter
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nn-objidl-istream>
+--
+-- A COM interface. Its methods are the functions named @iStream_...@, and those of
+-- the interfaces it derives from. Release a reference with 'Core.release'.
+newtype IStream = IStream (Ptr ())
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+instance Core.Interface IStream where
+  interfaceId = GUID 0xc 0x0 0x0 (FixedArray [0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x46])
+  toRaw (IStream p) = p
+  fromRaw = IStream
+
+instance Core.Inherits IStream IStream
+
+instance Core.Inherits ISequentialStream IStream
+
+instance Core.Inherits IUnknown IStream
 
 newtype LPARAM = LPARAM IntPtr
   deriving stock (P.Show)
@@ -633,6 +1425,147 @@ newtype PWSTR = PWSTR (Ptr Word16)
 instance Core.WideString PWSTR where
   withWideString (PWSTR p) k = k p
 
+newtype ROT_FLAGS = ROT_FLAGS Word32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern ROTFLAGS_REGISTRATIONKEEPSALIVE :: ROT_FLAGS
+pattern ROTFLAGS_REGISTRATIONKEEPSALIVE = ROT_FLAGS 1
+
+pattern ROTFLAGS_ALLOWANYCLIENT :: ROT_FLAGS
+pattern ROTFLAGS_ALLOWANYCLIENT = ROT_FLAGS 2
+
+newtype SFGAO_FLAGS = SFGAO_FLAGS Word32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern SFGAO_CANCOPY :: SFGAO_FLAGS
+pattern SFGAO_CANCOPY = SFGAO_FLAGS 1
+
+pattern SFGAO_CANMOVE :: SFGAO_FLAGS
+pattern SFGAO_CANMOVE = SFGAO_FLAGS 2
+
+pattern SFGAO_CANLINK :: SFGAO_FLAGS
+pattern SFGAO_CANLINK = SFGAO_FLAGS 4
+
+pattern SFGAO_STORAGE :: SFGAO_FLAGS
+pattern SFGAO_STORAGE = SFGAO_FLAGS 8
+
+pattern SFGAO_CANRENAME :: SFGAO_FLAGS
+pattern SFGAO_CANRENAME = SFGAO_FLAGS 16
+
+pattern SFGAO_CANDELETE :: SFGAO_FLAGS
+pattern SFGAO_CANDELETE = SFGAO_FLAGS 32
+
+pattern SFGAO_HASPROPSHEET :: SFGAO_FLAGS
+pattern SFGAO_HASPROPSHEET = SFGAO_FLAGS 64
+
+pattern SFGAO_DROPTARGET :: SFGAO_FLAGS
+pattern SFGAO_DROPTARGET = SFGAO_FLAGS 256
+
+pattern SFGAO_CAPABILITYMASK :: SFGAO_FLAGS
+pattern SFGAO_CAPABILITYMASK = SFGAO_FLAGS 375
+
+pattern SFGAO_PLACEHOLDER :: SFGAO_FLAGS
+pattern SFGAO_PLACEHOLDER = SFGAO_FLAGS 2048
+
+pattern SFGAO_SYSTEM :: SFGAO_FLAGS
+pattern SFGAO_SYSTEM = SFGAO_FLAGS 4096
+
+pattern SFGAO_ENCRYPTED :: SFGAO_FLAGS
+pattern SFGAO_ENCRYPTED = SFGAO_FLAGS 8192
+
+pattern SFGAO_ISSLOW :: SFGAO_FLAGS
+pattern SFGAO_ISSLOW = SFGAO_FLAGS 16384
+
+pattern SFGAO_GHOSTED :: SFGAO_FLAGS
+pattern SFGAO_GHOSTED = SFGAO_FLAGS 32768
+
+pattern SFGAO_LINK :: SFGAO_FLAGS
+pattern SFGAO_LINK = SFGAO_FLAGS 65536
+
+pattern SFGAO_SHARE :: SFGAO_FLAGS
+pattern SFGAO_SHARE = SFGAO_FLAGS 131072
+
+pattern SFGAO_READONLY :: SFGAO_FLAGS
+pattern SFGAO_READONLY = SFGAO_FLAGS 262144
+
+pattern SFGAO_HIDDEN :: SFGAO_FLAGS
+pattern SFGAO_HIDDEN = SFGAO_FLAGS 524288
+
+pattern SFGAO_DISPLAYATTRMASK :: SFGAO_FLAGS
+pattern SFGAO_DISPLAYATTRMASK = SFGAO_FLAGS 1032192
+
+pattern SFGAO_FILESYSANCESTOR :: SFGAO_FLAGS
+pattern SFGAO_FILESYSANCESTOR = SFGAO_FLAGS 268435456
+
+pattern SFGAO_FOLDER :: SFGAO_FLAGS
+pattern SFGAO_FOLDER = SFGAO_FLAGS 536870912
+
+pattern SFGAO_FILESYSTEM :: SFGAO_FLAGS
+pattern SFGAO_FILESYSTEM = SFGAO_FLAGS 1073741824
+
+pattern SFGAO_HASSUBFOLDER :: SFGAO_FLAGS
+pattern SFGAO_HASSUBFOLDER = SFGAO_FLAGS 2147483648
+
+pattern SFGAO_CONTENTSMASK :: SFGAO_FLAGS
+pattern SFGAO_CONTENTSMASK = SFGAO_FLAGS 2147483648
+
+pattern SFGAO_VALIDATE :: SFGAO_FLAGS
+pattern SFGAO_VALIDATE = SFGAO_FLAGS 16777216
+
+pattern SFGAO_REMOVABLE :: SFGAO_FLAGS
+pattern SFGAO_REMOVABLE = SFGAO_FLAGS 33554432
+
+pattern SFGAO_COMPRESSED :: SFGAO_FLAGS
+pattern SFGAO_COMPRESSED = SFGAO_FLAGS 67108864
+
+pattern SFGAO_BROWSABLE :: SFGAO_FLAGS
+pattern SFGAO_BROWSABLE = SFGAO_FLAGS 134217728
+
+pattern SFGAO_NONENUMERATED :: SFGAO_FLAGS
+pattern SFGAO_NONENUMERATED = SFGAO_FLAGS 1048576
+
+pattern SFGAO_NEWCONTENT :: SFGAO_FLAGS
+pattern SFGAO_NEWCONTENT = SFGAO_FLAGS 2097152
+
+pattern SFGAO_CANMONIKER :: SFGAO_FLAGS
+pattern SFGAO_CANMONIKER = SFGAO_FLAGS 4194304
+
+pattern SFGAO_HASSTORAGE :: SFGAO_FLAGS
+pattern SFGAO_HASSTORAGE = SFGAO_FLAGS 4194304
+
+pattern SFGAO_STREAM :: SFGAO_FLAGS
+pattern SFGAO_STREAM = SFGAO_FLAGS 4194304
+
+pattern SFGAO_STORAGEANCESTOR :: SFGAO_FLAGS
+pattern SFGAO_STORAGEANCESTOR = SFGAO_FLAGS 8388608
+
+pattern SFGAO_STORAGECAPMASK :: SFGAO_FLAGS
+pattern SFGAO_STORAGECAPMASK = SFGAO_FLAGS 1891958792
+
+pattern SFGAO_PKEYSFGAOMASK :: SFGAO_FLAGS
+pattern SFGAO_PKEYSFGAOMASK = SFGAO_FLAGS 2164539392
+
+newtype SIATTRIBFLAGS = SIATTRIBFLAGS Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern SIATTRIBFLAGS_AND :: SIATTRIBFLAGS
+pattern SIATTRIBFLAGS_AND = SIATTRIBFLAGS 1
+
+pattern SIATTRIBFLAGS_OR :: SIATTRIBFLAGS
+pattern SIATTRIBFLAGS_OR = SIATTRIBFLAGS 2
+
+pattern SIATTRIBFLAGS_APPCOMPAT :: SIATTRIBFLAGS
+pattern SIATTRIBFLAGS_APPCOMPAT = SIATTRIBFLAGS 3
+
+pattern SIATTRIBFLAGS_MASK :: SIATTRIBFLAGS
+pattern SIATTRIBFLAGS_MASK = SIATTRIBFLAGS 3
+
+pattern SIATTRIBFLAGS_ALLITEMS :: SIATTRIBFLAGS
+pattern SIATTRIBFLAGS_ALLITEMS = SIATTRIBFLAGS 16384
+
 -- | <https://learn.microsoft.com/windows/win32/NetMgmt/odj-sid_identifier_authority>
 data SID_IDENTIFIER_AUTHORITY = SID_IDENTIFIER_AUTHORITY
   { value :: !(FixedArray 6 Word8)
@@ -645,6 +1578,41 @@ instance S.Storable SID_IDENTIFIER_AUTHORITY where
   peek p = SID_IDENTIFIER_AUTHORITY P.<$> S.peekByteOff p 0
   poke p (SID_IDENTIFIER_AUTHORITY f0) = S.pokeByteOff p 0 f0
 
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/ne-shobjidl_core-sigdn>
+newtype SIGDN = SIGDN Int32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+pattern SIGDN_NORMALDISPLAY :: SIGDN
+pattern SIGDN_NORMALDISPLAY = SIGDN 0
+
+pattern SIGDN_PARENTRELATIVEPARSING :: SIGDN
+pattern SIGDN_PARENTRELATIVEPARSING = SIGDN (-2147385343)
+
+pattern SIGDN_DESKTOPABSOLUTEPARSING :: SIGDN
+pattern SIGDN_DESKTOPABSOLUTEPARSING = SIGDN (-2147319808)
+
+pattern SIGDN_PARENTRELATIVEEDITING :: SIGDN
+pattern SIGDN_PARENTRELATIVEEDITING = SIGDN (-2147282943)
+
+pattern SIGDN_DESKTOPABSOLUTEEDITING :: SIGDN
+pattern SIGDN_DESKTOPABSOLUTEEDITING = SIGDN (-2147172352)
+
+pattern SIGDN_FILESYSPATH :: SIGDN
+pattern SIGDN_FILESYSPATH = SIGDN (-2147123200)
+
+pattern SIGDN_URL :: SIGDN
+pattern SIGDN_URL = SIGDN (-2147057664)
+
+pattern SIGDN_PARENTRELATIVEFORADDRESSBAR :: SIGDN
+pattern SIGDN_PARENTRELATIVEFORADDRESSBAR = SIGDN (-2146975743)
+
+pattern SIGDN_PARENTRELATIVE :: SIGDN
+pattern SIGDN_PARENTRELATIVE = SIGDN (-2146959359)
+
+pattern SIGDN_PARENTRELATIVEFORUI :: SIGDN
+pattern SIGDN_PARENTRELATIVEFORUI = SIGDN (-2146877439)
+
 data SRWLOCK = SRWLOCK
   { ptr :: !(Ptr ())
   }
@@ -655,6 +1623,101 @@ instance S.Storable SRWLOCK where
   alignment _ = 8
   peek p = SRWLOCK P.<$> S.peekByteOff p 0
   poke p (SRWLOCK f0) = S.pokeByteOff p 0 f0
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/ns-objidl-statstg>
+data STATSTG = STATSTG
+  { pwcsName :: !PWSTR
+  , type_ :: !Word32
+  , cbSize :: !Word64
+  , mtime :: !FILETIME
+  , ctime :: !FILETIME
+  , atime :: !FILETIME
+  , grfMode :: !STGM
+  , grfLocksSupported :: !Word32
+  , clsid :: !GUID
+  , grfStateBits :: !Word32
+  , reserved :: !Word32
+  }
+  deriving stock (P.Eq, P.Ord, P.Show)
+
+instance S.Storable STATSTG where
+  sizeOf _ = 80
+  alignment _ = 8
+  peek p = STATSTG P.<$> S.peekByteOff p 0 P.<*> S.peekByteOff p 8 P.<*> S.peekByteOff p 16 P.<*> S.peekByteOff p 24 P.<*> S.peekByteOff p 32 P.<*> S.peekByteOff p 40 P.<*> S.peekByteOff p 48 P.<*> S.peekByteOff p 52 P.<*> S.peekByteOff p 56 P.<*> S.peekByteOff p 72 P.<*> S.peekByteOff p 76
+  poke p (STATSTG f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10) = S.pokeByteOff p 0 f0 P.>> S.pokeByteOff p 8 f1 P.>> S.pokeByteOff p 16 f2 P.>> S.pokeByteOff p 24 f3 P.>> S.pokeByteOff p 32 f4 P.>> S.pokeByteOff p 40 f5 P.>> S.pokeByteOff p 48 f6 P.>> S.pokeByteOff p 52 f7 P.>> S.pokeByteOff p 56 f8 P.>> S.pokeByteOff p 72 f9 P.>> S.pokeByteOff p 76 f10
+
+-- | <https://learn.microsoft.com/windows/win32/Stg/stgm-constants>
+newtype STGM = STGM Word32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable, B.Bits)
+
+pattern STGM_DIRECT :: STGM
+pattern STGM_DIRECT = STGM 0
+
+pattern STGM_TRANSACTED :: STGM
+pattern STGM_TRANSACTED = STGM 65536
+
+pattern STGM_SIMPLE :: STGM
+pattern STGM_SIMPLE = STGM 134217728
+
+pattern STGM_READ :: STGM
+pattern STGM_READ = STGM 0
+
+pattern STGM_WRITE :: STGM
+pattern STGM_WRITE = STGM 1
+
+pattern STGM_READWRITE :: STGM
+pattern STGM_READWRITE = STGM 2
+
+pattern STGM_SHARE_DENY_NONE :: STGM
+pattern STGM_SHARE_DENY_NONE = STGM 64
+
+pattern STGM_SHARE_DENY_READ :: STGM
+pattern STGM_SHARE_DENY_READ = STGM 48
+
+pattern STGM_SHARE_DENY_WRITE :: STGM
+pattern STGM_SHARE_DENY_WRITE = STGM 32
+
+pattern STGM_SHARE_EXCLUSIVE :: STGM
+pattern STGM_SHARE_EXCLUSIVE = STGM 16
+
+pattern STGM_PRIORITY :: STGM
+pattern STGM_PRIORITY = STGM 262144
+
+pattern STGM_DELETEONRELEASE :: STGM
+pattern STGM_DELETEONRELEASE = STGM 67108864
+
+pattern STGM_NOSCRATCH :: STGM
+pattern STGM_NOSCRATCH = STGM 1048576
+
+pattern STGM_CREATE :: STGM
+pattern STGM_CREATE = STGM 4096
+
+pattern STGM_CONVERT :: STGM
+pattern STGM_CONVERT = STGM 131072
+
+pattern STGM_FAILIFTHERE :: STGM
+pattern STGM_FAILIFTHERE = STGM 0
+
+pattern STGM_NOSNAPSHOT :: STGM
+pattern STGM_NOSNAPSHOT = STGM 2097152
+
+pattern STGM_DIRECT_SWMR :: STGM
+pattern STGM_DIRECT_SWMR = STGM 4194304
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/ne-objidl-stream_seek>
+newtype STREAM_SEEK = STREAM_SEEK Word32
+  deriving stock (P.Show)
+  deriving newtype (P.Eq, P.Ord, S.Storable)
+
+pattern STREAM_SEEK_SET :: STREAM_SEEK
+pattern STREAM_SEEK_SET = STREAM_SEEK 0
+
+pattern STREAM_SEEK_CUR :: STREAM_SEEK
+pattern STREAM_SEEK_CUR = STREAM_SEEK 1
+
+pattern STREAM_SEEK_END :: STREAM_SEEK
+pattern STREAM_SEEK_END = STREAM_SEEK 2
 
 -- | <https://learn.microsoft.com/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info>
 data SYSTEM_INFO = SYSTEM_INFO
@@ -859,17 +1922,30 @@ foreign import ccall safe "dynamic"
 
 -- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance>
 --
--- Throws 'Core.WindowsError' if the result is a failure.
-coCreateInstance :: Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO ()
-coCreateInstance a1 a2 a3 a4 a5 =
-  call'coCreateInstance proc'coCreateInstance a1 a2 a3 a4 a5 P.>>= Core.check
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+-- Optional: @pUnkOuter@ can be @Nothing@ (NULL).
+coCreateInstance :: Core.Interface t => Ptr GUID -> P.Maybe IUnknown -> CLSCTX -> IO t
+coCreateInstance a1 a2 a3 =
+  Core.query (\riid o -> call'coCreateInstance proc'coCreateInstance a1 (Core.orNull a2) a3 riid o)
 
-proc'coCreateInstance :: FunPtr (Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT)
+proc'coCreateInstance :: FunPtr (Ptr GUID -> IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT)
 proc'coCreateInstance = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoCreateInstance")
 {-# NOINLINE proc'coCreateInstance #-}
 
 foreign import ccall safe "dynamic"
-  call'coCreateInstance :: FunPtr (Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+  call'coCreateInstance :: FunPtr (Ptr GUID -> IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> Ptr GUID -> IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-coinitializeex>
+coInitializeEx :: Ptr () -> Word32 -> IO HRESULT
+coInitializeEx a1 a2 =
+  call'coInitializeEx proc'coInitializeEx a1 a2
+
+proc'coInitializeEx :: FunPtr (Ptr () -> Word32 -> IO HRESULT)
+proc'coInitializeEx = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoInitializeEx")
+{-# NOINLINE proc'coInitializeEx #-}
+
+foreign import ccall safe "dynamic"
+  call'coInitializeEx :: FunPtr (Ptr () -> Word32 -> IO HRESULT) -> Ptr () -> Word32 -> IO HRESULT
 
 -- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-cotaskmemfree>
 coTaskMemFree :: Ptr () -> IO ()
@@ -882,6 +1958,18 @@ proc'coTaskMemFree = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoTaskMemF
 
 foreign import ccall safe "dynamic"
   call'coTaskMemFree :: FunPtr (Ptr () -> IO ()) -> Ptr () -> IO ()
+
+-- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-couninitialize>
+coUninitialize :: IO ()
+coUninitialize =
+  call'coUninitialize proc'coUninitialize
+
+proc'coUninitialize :: FunPtr (IO ())
+proc'coUninitialize = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoUninitialize")
+{-# NOINLINE proc'coUninitialize #-}
+
+foreign import ccall safe "dynamic"
+  call'coUninitialize :: FunPtr (IO ()) -> IO ()
 
 -- | <https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-getcurrentdirectory>
 --
@@ -1058,3 +2146,1171 @@ proc'lstrlenW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "lstrlenW")
 
 foreign import ccall safe "dynamic"
   call'lstrlenW :: FunPtr (PWSTR -> IO Int32) -> PWSTR -> IO Int32
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-registerobjectbound>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_RegisterObjectBound :: (Core.Inherits IBindCtx this, Core.Inherits IUnknown i1) => this -> i1 -> IO ()
+iBindCtx_RegisterObjectBound (Core.upcast @IBindCtx -> this) a1 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iBindCtx_RegisterObjectBound f this (Core.upcast @IUnknown a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_RegisterObjectBound :: FunPtr (IBindCtx -> IUnknown -> IO HRESULT) -> IBindCtx -> IUnknown -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-revokeobjectbound>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_RevokeObjectBound :: (Core.Inherits IBindCtx this, Core.Inherits IUnknown i1) => this -> i1 -> IO ()
+iBindCtx_RevokeObjectBound (Core.upcast @IBindCtx -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iBindCtx_RevokeObjectBound f this (Core.upcast @IUnknown a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_RevokeObjectBound :: FunPtr (IBindCtx -> IUnknown -> IO HRESULT) -> IBindCtx -> IUnknown -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-releaseboundobjects>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_ReleaseBoundObjects :: Core.Inherits IBindCtx this => this -> IO ()
+iBindCtx_ReleaseBoundObjects (Core.upcast @IBindCtx -> this) =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iBindCtx_ReleaseBoundObjects f this P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_ReleaseBoundObjects :: FunPtr (IBindCtx -> IO HRESULT) -> IBindCtx -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-setbindoptions>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_SetBindOptions :: Core.Inherits IBindCtx this => this -> Ptr BIND_OPTS -> IO ()
+iBindCtx_SetBindOptions (Core.upcast @IBindCtx -> this) a1 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  call'iBindCtx_SetBindOptions f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_SetBindOptions :: FunPtr (IBindCtx -> Ptr BIND_OPTS -> IO HRESULT) -> IBindCtx -> Ptr BIND_OPTS -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-getbindoptions>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_GetBindOptions :: Core.Inherits IBindCtx this => this -> Ptr BIND_OPTS -> IO ()
+iBindCtx_GetBindOptions (Core.upcast @IBindCtx -> this) a1 =
+  Core.vtableEntry this 7 P.>>= \f ->
+  call'iBindCtx_GetBindOptions f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_GetBindOptions :: FunPtr (IBindCtx -> Ptr BIND_OPTS -> IO HRESULT) -> IBindCtx -> Ptr BIND_OPTS -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-getrunningobjecttable>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_GetRunningObjectTable :: Core.Inherits IBindCtx this => this -> IO IRunningObjectTable
+iBindCtx_GetRunningObjectTable (Core.upcast @IBindCtx -> this) =
+  Core.vtableEntry this 8 P.>>= \f ->
+  M.alloca P.$ \o -> call'iBindCtx_GetRunningObjectTable f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_GetRunningObjectTable :: FunPtr (IBindCtx -> Ptr IRunningObjectTable -> IO HRESULT) -> IBindCtx -> Ptr IRunningObjectTable -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-registerobjectparam>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_RegisterObjectParam :: (Core.Inherits IBindCtx this, Core.Inherits IUnknown i1) => this -> PWSTR -> i1 -> IO ()
+iBindCtx_RegisterObjectParam (Core.upcast @IBindCtx -> this) a1 a2 =
+  Core.vtableEntry this 9 P.>>= \f ->
+  call'iBindCtx_RegisterObjectParam f this a1 (Core.upcast @IUnknown a2) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_RegisterObjectParam :: FunPtr (IBindCtx -> PWSTR -> IUnknown -> IO HRESULT) -> IBindCtx -> PWSTR -> IUnknown -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-getobjectparam>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_GetObjectParam :: Core.Inherits IBindCtx this => this -> PWSTR -> IO IUnknown
+iBindCtx_GetObjectParam (Core.upcast @IBindCtx -> this) a1 =
+  Core.vtableEntry this 10 P.>>= \f ->
+  M.alloca P.$ \o -> call'iBindCtx_GetObjectParam f this a1 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_GetObjectParam :: FunPtr (IBindCtx -> PWSTR -> Ptr IUnknown -> IO HRESULT) -> IBindCtx -> PWSTR -> Ptr IUnknown -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-enumobjectparam>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_EnumObjectParam :: Core.Inherits IBindCtx this => this -> IO IEnumString
+iBindCtx_EnumObjectParam (Core.upcast @IBindCtx -> this) =
+  Core.vtableEntry this 11 P.>>= \f ->
+  M.alloca P.$ \o -> call'iBindCtx_EnumObjectParam f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_EnumObjectParam :: FunPtr (IBindCtx -> Ptr IEnumString -> IO HRESULT) -> IBindCtx -> Ptr IEnumString -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ibindctx-revokeobjectparam>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iBindCtx_RevokeObjectParam :: Core.Inherits IBindCtx this => this -> PWSTR -> IO ()
+iBindCtx_RevokeObjectParam (Core.upcast @IBindCtx -> this) a1 =
+  Core.vtableEntry this 12 P.>>= \f ->
+  call'iBindCtx_RevokeObjectParam f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iBindCtx_RevokeObjectParam :: FunPtr (IBindCtx -> PWSTR -> IO HRESULT) -> IBindCtx -> PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ienummoniker-next>
+iEnumMoniker_Next :: Core.Inherits IEnumMoniker this => this -> Word32 -> Ptr IMoniker -> Ptr Word32 -> IO HRESULT
+iEnumMoniker_Next (Core.upcast @IEnumMoniker -> this) a1 a2 a3 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iEnumMoniker_Next f this a1 a2 a3
+
+foreign import ccall safe "dynamic"
+  call'iEnumMoniker_Next :: FunPtr (IEnumMoniker -> Word32 -> Ptr IMoniker -> Ptr Word32 -> IO HRESULT) -> IEnumMoniker -> Word32 -> Ptr IMoniker -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ienummoniker-skip>
+iEnumMoniker_Skip :: Core.Inherits IEnumMoniker this => this -> Word32 -> IO HRESULT
+iEnumMoniker_Skip (Core.upcast @IEnumMoniker -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iEnumMoniker_Skip f this a1
+
+foreign import ccall safe "dynamic"
+  call'iEnumMoniker_Skip :: FunPtr (IEnumMoniker -> Word32 -> IO HRESULT) -> IEnumMoniker -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ienummoniker-reset>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iEnumMoniker_Reset :: Core.Inherits IEnumMoniker this => this -> IO ()
+iEnumMoniker_Reset (Core.upcast @IEnumMoniker -> this) =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iEnumMoniker_Reset f this P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iEnumMoniker_Reset :: FunPtr (IEnumMoniker -> IO HRESULT) -> IEnumMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ienummoniker-clone>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iEnumMoniker_Clone :: Core.Inherits IEnumMoniker this => this -> IO IEnumMoniker
+iEnumMoniker_Clone (Core.upcast @IEnumMoniker -> this) =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iEnumMoniker_Clone f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iEnumMoniker_Clone :: FunPtr (IEnumMoniker -> Ptr IEnumMoniker -> IO HRESULT) -> IEnumMoniker -> Ptr IEnumMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ienumshellitems-next>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iEnumShellItems_Next :: Core.Inherits IEnumShellItems this => this -> Word32 -> Ptr IShellItem -> Ptr Word32 -> IO ()
+iEnumShellItems_Next (Core.upcast @IEnumShellItems -> this) a1 a2 a3 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iEnumShellItems_Next f this a1 a2 a3 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iEnumShellItems_Next :: FunPtr (IEnumShellItems -> Word32 -> Ptr IShellItem -> Ptr Word32 -> IO HRESULT) -> IEnumShellItems -> Word32 -> Ptr IShellItem -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ienumshellitems-skip>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iEnumShellItems_Skip :: Core.Inherits IEnumShellItems this => this -> Word32 -> IO ()
+iEnumShellItems_Skip (Core.upcast @IEnumShellItems -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iEnumShellItems_Skip f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iEnumShellItems_Skip :: FunPtr (IEnumShellItems -> Word32 -> IO HRESULT) -> IEnumShellItems -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ienumshellitems-reset>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iEnumShellItems_Reset :: Core.Inherits IEnumShellItems this => this -> IO ()
+iEnumShellItems_Reset (Core.upcast @IEnumShellItems -> this) =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iEnumShellItems_Reset f this P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iEnumShellItems_Reset :: FunPtr (IEnumShellItems -> IO HRESULT) -> IEnumShellItems -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ienumshellitems-clone>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iEnumShellItems_Clone :: Core.Inherits IEnumShellItems this => this -> IO IEnumShellItems
+iEnumShellItems_Clone (Core.upcast @IEnumShellItems -> this) =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iEnumShellItems_Clone f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iEnumShellItems_Clone :: FunPtr (IEnumShellItems -> Ptr IEnumShellItems -> IO HRESULT) -> IEnumShellItems -> Ptr IEnumShellItems -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidlbase/nf-objidlbase-ienumstring-next>
+iEnumString_Next :: Core.Inherits IEnumString this => this -> Word32 -> Ptr PWSTR -> Ptr Word32 -> IO HRESULT
+iEnumString_Next (Core.upcast @IEnumString -> this) a1 a2 a3 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iEnumString_Next f this a1 a2 a3
+
+foreign import ccall safe "dynamic"
+  call'iEnumString_Next :: FunPtr (IEnumString -> Word32 -> Ptr PWSTR -> Ptr Word32 -> IO HRESULT) -> IEnumString -> Word32 -> Ptr PWSTR -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidlbase/nf-objidlbase-ienumstring-skip>
+iEnumString_Skip :: Core.Inherits IEnumString this => this -> Word32 -> IO HRESULT
+iEnumString_Skip (Core.upcast @IEnumString -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iEnumString_Skip f this a1
+
+foreign import ccall safe "dynamic"
+  call'iEnumString_Skip :: FunPtr (IEnumString -> Word32 -> IO HRESULT) -> IEnumString -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidlbase/nf-objidlbase-ienumstring-reset>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iEnumString_Reset :: Core.Inherits IEnumString this => this -> IO ()
+iEnumString_Reset (Core.upcast @IEnumString -> this) =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iEnumString_Reset f this P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iEnumString_Reset :: FunPtr (IEnumString -> IO HRESULT) -> IEnumString -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidlbase/nf-objidlbase-ienumstring-clone>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iEnumString_Clone :: Core.Inherits IEnumString this => this -> IO IEnumString
+iEnumString_Clone (Core.upcast @IEnumString -> this) =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iEnumString_Clone f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iEnumString_Clone :: FunPtr (IEnumString -> Ptr IEnumString -> IO HRESULT) -> IEnumString -> Ptr IEnumString -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfiletypes>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetFileTypes :: Core.Inherits IFileDialog this => this -> Word32 -> Ptr COMDLG_FILTERSPEC -> IO ()
+iFileDialog_SetFileTypes (Core.upcast @IFileDialog -> this) a1 a2 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iFileDialog_SetFileTypes f this a1 a2 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetFileTypes :: FunPtr (IFileDialog -> Word32 -> Ptr COMDLG_FILTERSPEC -> IO HRESULT) -> IFileDialog -> Word32 -> Ptr COMDLG_FILTERSPEC -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfiletypeindex>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetFileTypeIndex :: Core.Inherits IFileDialog this => this -> Word32 -> IO ()
+iFileDialog_SetFileTypeIndex (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iFileDialog_SetFileTypeIndex f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetFileTypeIndex :: FunPtr (IFileDialog -> Word32 -> IO HRESULT) -> IFileDialog -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getfiletypeindex>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_GetFileTypeIndex :: Core.Inherits IFileDialog this => this -> IO Word32
+iFileDialog_GetFileTypeIndex (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_GetFileTypeIndex f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_GetFileTypeIndex :: FunPtr (IFileDialog -> Ptr Word32 -> IO HRESULT) -> IFileDialog -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-advise>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_Advise :: (Core.Inherits IFileDialog this, Core.Inherits IFileDialogEvents i1) => this -> i1 -> IO Word32
+iFileDialog_Advise (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 7 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_Advise f this (Core.upcast @IFileDialogEvents a1) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_Advise :: FunPtr (IFileDialog -> IFileDialogEvents -> Ptr Word32 -> IO HRESULT) -> IFileDialog -> IFileDialogEvents -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-unadvise>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_Unadvise :: Core.Inherits IFileDialog this => this -> Word32 -> IO ()
+iFileDialog_Unadvise (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 8 P.>>= \f ->
+  call'iFileDialog_Unadvise f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_Unadvise :: FunPtr (IFileDialog -> Word32 -> IO HRESULT) -> IFileDialog -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setoptions>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetOptions :: Core.Inherits IFileDialog this => this -> FILEOPENDIALOGOPTIONS -> IO ()
+iFileDialog_SetOptions (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 9 P.>>= \f ->
+  call'iFileDialog_SetOptions f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetOptions :: FunPtr (IFileDialog -> FILEOPENDIALOGOPTIONS -> IO HRESULT) -> IFileDialog -> FILEOPENDIALOGOPTIONS -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getoptions>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_GetOptions :: Core.Inherits IFileDialog this => this -> IO FILEOPENDIALOGOPTIONS
+iFileDialog_GetOptions (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 10 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_GetOptions f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_GetOptions :: FunPtr (IFileDialog -> Ptr FILEOPENDIALOGOPTIONS -> IO HRESULT) -> IFileDialog -> Ptr FILEOPENDIALOGOPTIONS -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setdefaultfolder>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetDefaultFolder :: (Core.Inherits IFileDialog this, Core.Inherits IShellItem i1) => this -> i1 -> IO ()
+iFileDialog_SetDefaultFolder (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 11 P.>>= \f ->
+  call'iFileDialog_SetDefaultFolder f this (Core.upcast @IShellItem a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetDefaultFolder :: FunPtr (IFileDialog -> IShellItem -> IO HRESULT) -> IFileDialog -> IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfolder>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetFolder :: (Core.Inherits IFileDialog this, Core.Inherits IShellItem i1) => this -> i1 -> IO ()
+iFileDialog_SetFolder (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 12 P.>>= \f ->
+  call'iFileDialog_SetFolder f this (Core.upcast @IShellItem a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetFolder :: FunPtr (IFileDialog -> IShellItem -> IO HRESULT) -> IFileDialog -> IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getfolder>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_GetFolder :: Core.Inherits IFileDialog this => this -> IO IShellItem
+iFileDialog_GetFolder (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 13 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_GetFolder f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_GetFolder :: FunPtr (IFileDialog -> Ptr IShellItem -> IO HRESULT) -> IFileDialog -> Ptr IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getcurrentselection>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_GetCurrentSelection :: Core.Inherits IFileDialog this => this -> IO IShellItem
+iFileDialog_GetCurrentSelection (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 14 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_GetCurrentSelection f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_GetCurrentSelection :: FunPtr (IFileDialog -> Ptr IShellItem -> IO HRESULT) -> IFileDialog -> Ptr IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfilename>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetFileName :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()
+iFileDialog_SetFileName (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 15 P.>>= \f ->
+  Core.withWideString a1 P.$ \a1' ->
+  call'iFileDialog_SetFileName f this (PWSTR a1') P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetFileName :: FunPtr (IFileDialog -> PWSTR -> IO HRESULT) -> IFileDialog -> PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getfilename>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_GetFileName :: Core.Inherits IFileDialog this => this -> IO PWSTR
+iFileDialog_GetFileName (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 16 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_GetFileName f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_GetFileName :: FunPtr (IFileDialog -> Ptr PWSTR -> IO HRESULT) -> IFileDialog -> Ptr PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-settitle>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetTitle :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()
+iFileDialog_SetTitle (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 17 P.>>= \f ->
+  Core.withWideString a1 P.$ \a1' ->
+  call'iFileDialog_SetTitle f this (PWSTR a1') P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetTitle :: FunPtr (IFileDialog -> PWSTR -> IO HRESULT) -> IFileDialog -> PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setokbuttonlabel>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetOkButtonLabel :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()
+iFileDialog_SetOkButtonLabel (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 18 P.>>= \f ->
+  Core.withWideString a1 P.$ \a1' ->
+  call'iFileDialog_SetOkButtonLabel f this (PWSTR a1') P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetOkButtonLabel :: FunPtr (IFileDialog -> PWSTR -> IO HRESULT) -> IFileDialog -> PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfilenamelabel>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetFileNameLabel :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()
+iFileDialog_SetFileNameLabel (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 19 P.>>= \f ->
+  Core.withWideString a1 P.$ \a1' ->
+  call'iFileDialog_SetFileNameLabel f this (PWSTR a1') P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetFileNameLabel :: FunPtr (IFileDialog -> PWSTR -> IO HRESULT) -> IFileDialog -> PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getresult>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_GetResult :: Core.Inherits IFileDialog this => this -> IO IShellItem
+iFileDialog_GetResult (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 20 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialog_GetResult f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_GetResult :: FunPtr (IFileDialog -> Ptr IShellItem -> IO HRESULT) -> IFileDialog -> Ptr IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-addplace>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_AddPlace :: (Core.Inherits IFileDialog this, Core.Inherits IShellItem i1) => this -> i1 -> FDAP -> IO ()
+iFileDialog_AddPlace (Core.upcast @IFileDialog -> this) a1 a2 =
+  Core.vtableEntry this 21 P.>>= \f ->
+  call'iFileDialog_AddPlace f this (Core.upcast @IShellItem a1) a2 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_AddPlace :: FunPtr (IFileDialog -> IShellItem -> FDAP -> IO HRESULT) -> IFileDialog -> IShellItem -> FDAP -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setdefaultextension>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetDefaultExtension :: (Core.Inherits IFileDialog this, Core.WideString s1) => this -> s1 -> IO ()
+iFileDialog_SetDefaultExtension (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 22 P.>>= \f ->
+  Core.withWideString a1 P.$ \a1' ->
+  call'iFileDialog_SetDefaultExtension f this (PWSTR a1') P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetDefaultExtension :: FunPtr (IFileDialog -> PWSTR -> IO HRESULT) -> IFileDialog -> PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-close>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_Close :: Core.Inherits IFileDialog this => this -> HRESULT -> IO ()
+iFileDialog_Close (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 23 P.>>= \f ->
+  call'iFileDialog_Close f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_Close :: FunPtr (IFileDialog -> HRESULT -> IO HRESULT) -> IFileDialog -> HRESULT -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setclientguid>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetClientGuid :: Core.Inherits IFileDialog this => this -> Ptr GUID -> IO ()
+iFileDialog_SetClientGuid (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 24 P.>>= \f ->
+  call'iFileDialog_SetClientGuid f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetClientGuid :: FunPtr (IFileDialog -> Ptr GUID -> IO HRESULT) -> IFileDialog -> Ptr GUID -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-clearclientdata>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_ClearClientData :: Core.Inherits IFileDialog this => this -> IO ()
+iFileDialog_ClearClientData (Core.upcast @IFileDialog -> this) =
+  Core.vtableEntry this 25 P.>>= \f ->
+  call'iFileDialog_ClearClientData f this P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_ClearClientData :: FunPtr (IFileDialog -> IO HRESULT) -> IFileDialog -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfilter>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialog_SetFilter :: (Core.Inherits IFileDialog this, Core.Inherits IShellItemFilter i1) => this -> i1 -> IO ()
+iFileDialog_SetFilter (Core.upcast @IFileDialog -> this) a1 =
+  Core.vtableEntry this 26 P.>>= \f ->
+  call'iFileDialog_SetFilter f this (Core.upcast @IShellItemFilter a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialog_SetFilter :: FunPtr (IFileDialog -> IShellItemFilter -> IO HRESULT) -> IFileDialog -> IShellItemFilter -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-onfileok>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnFileOk :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1) => this -> i1 -> IO ()
+iFileDialogEvents_OnFileOk (Core.upcast @IFileDialogEvents -> this) a1 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iFileDialogEvents_OnFileOk f this (Core.upcast @IFileDialog a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnFileOk :: FunPtr (IFileDialogEvents -> IFileDialog -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-onfolderchanging>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnFolderChanging :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1, Core.Inherits IShellItem i2) => this -> i1 -> i2 -> IO ()
+iFileDialogEvents_OnFolderChanging (Core.upcast @IFileDialogEvents -> this) a1 a2 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iFileDialogEvents_OnFolderChanging f this (Core.upcast @IFileDialog a1) (Core.upcast @IShellItem a2) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnFolderChanging :: FunPtr (IFileDialogEvents -> IFileDialog -> IShellItem -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-onfolderchange>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnFolderChange :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1) => this -> i1 -> IO ()
+iFileDialogEvents_OnFolderChange (Core.upcast @IFileDialogEvents -> this) a1 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iFileDialogEvents_OnFolderChange f this (Core.upcast @IFileDialog a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnFolderChange :: FunPtr (IFileDialogEvents -> IFileDialog -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-onselectionchange>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnSelectionChange :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1) => this -> i1 -> IO ()
+iFileDialogEvents_OnSelectionChange (Core.upcast @IFileDialogEvents -> this) a1 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  call'iFileDialogEvents_OnSelectionChange f this (Core.upcast @IFileDialog a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnSelectionChange :: FunPtr (IFileDialogEvents -> IFileDialog -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-onshareviolation>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnShareViolation :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1, Core.Inherits IShellItem i2) => this -> i1 -> i2 -> IO FDE_SHAREVIOLATION_RESPONSE
+iFileDialogEvents_OnShareViolation (Core.upcast @IFileDialogEvents -> this) a1 a2 =
+  Core.vtableEntry this 7 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialogEvents_OnShareViolation f this (Core.upcast @IFileDialog a1) (Core.upcast @IShellItem a2) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnShareViolation :: FunPtr (IFileDialogEvents -> IFileDialog -> IShellItem -> Ptr FDE_SHAREVIOLATION_RESPONSE -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IShellItem -> Ptr FDE_SHAREVIOLATION_RESPONSE -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-ontypechange>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnTypeChange :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1) => this -> i1 -> IO ()
+iFileDialogEvents_OnTypeChange (Core.upcast @IFileDialogEvents -> this) a1 =
+  Core.vtableEntry this 8 P.>>= \f ->
+  call'iFileDialogEvents_OnTypeChange f this (Core.upcast @IFileDialog a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnTypeChange :: FunPtr (IFileDialogEvents -> IFileDialog -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialogevents-onoverwrite>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileDialogEvents_OnOverwrite :: (Core.Inherits IFileDialogEvents this, Core.Inherits IFileDialog i1, Core.Inherits IShellItem i2) => this -> i1 -> i2 -> IO FDE_OVERWRITE_RESPONSE
+iFileDialogEvents_OnOverwrite (Core.upcast @IFileDialogEvents -> this) a1 a2 =
+  Core.vtableEntry this 9 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileDialogEvents_OnOverwrite f this (Core.upcast @IFileDialog a1) (Core.upcast @IShellItem a2) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileDialogEvents_OnOverwrite :: FunPtr (IFileDialogEvents -> IFileDialog -> IShellItem -> Ptr FDE_OVERWRITE_RESPONSE -> IO HRESULT) -> IFileDialogEvents -> IFileDialog -> IShellItem -> Ptr FDE_OVERWRITE_RESPONSE -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileopendialog-getresults>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileOpenDialog_GetResults :: Core.Inherits IFileOpenDialog this => this -> IO IShellItemArray
+iFileOpenDialog_GetResults (Core.upcast @IFileOpenDialog -> this) =
+  Core.vtableEntry this 27 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileOpenDialog_GetResults f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileOpenDialog_GetResults :: FunPtr (IFileOpenDialog -> Ptr IShellItemArray -> IO HRESULT) -> IFileOpenDialog -> Ptr IShellItemArray -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileopendialog-getselecteditems>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iFileOpenDialog_GetSelectedItems :: Core.Inherits IFileOpenDialog this => this -> IO IShellItemArray
+iFileOpenDialog_GetSelectedItems (Core.upcast @IFileOpenDialog -> this) =
+  Core.vtableEntry this 28 P.>>= \f ->
+  M.alloca P.$ \o -> call'iFileOpenDialog_GetSelectedItems f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iFileOpenDialog_GetSelectedItems :: FunPtr (IFileOpenDialog -> Ptr IShellItemArray -> IO HRESULT) -> IFileOpenDialog -> Ptr IShellItemArray -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-imodalwindow-show>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iModalWindow_Show :: Core.Inherits IModalWindow this => this -> HWND -> IO ()
+iModalWindow_Show (Core.upcast @IModalWindow -> this) a1 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iModalWindow_Show f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iModalWindow_Show :: FunPtr (IModalWindow -> HWND -> IO HRESULT) -> IModalWindow -> HWND -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-bindtoobject>
+--
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+-- Optional: @pmkToLeft@ can be @Nothing@ (NULL).
+iMoniker_BindToObject :: (Core.Inherits IMoniker this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> P.Maybe IMoniker -> IO t
+iMoniker_BindToObject (Core.upcast @IMoniker -> this) a1 a2 =
+  Core.vtableEntry this 8 P.>>= \f ->
+  Core.query (\riid o -> call'iMoniker_BindToObject f this (Core.upcast @IBindCtx a1) (Core.orNull a2) riid o)
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_BindToObject :: FunPtr (IMoniker -> IBindCtx -> IMoniker -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> IMoniker -> IBindCtx -> IMoniker -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-bindtostorage>
+--
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+-- Optional: @pmkToLeft@ can be @Nothing@ (NULL).
+iMoniker_BindToStorage :: (Core.Inherits IMoniker this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> P.Maybe IMoniker -> IO t
+iMoniker_BindToStorage (Core.upcast @IMoniker -> this) a1 a2 =
+  Core.vtableEntry this 9 P.>>= \f ->
+  Core.query (\riid o -> call'iMoniker_BindToStorage f this (Core.upcast @IBindCtx a1) (Core.orNull a2) riid o)
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_BindToStorage :: FunPtr (IMoniker -> IBindCtx -> IMoniker -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> IMoniker -> IBindCtx -> IMoniker -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-reduce>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_Reduce :: (Core.Inherits IMoniker this, Core.Inherits IBindCtx i1) => this -> i1 -> Word32 -> Ptr IMoniker -> Ptr IMoniker -> IO ()
+iMoniker_Reduce (Core.upcast @IMoniker -> this) a1 a2 a3 a4 =
+  Core.vtableEntry this 10 P.>>= \f ->
+  call'iMoniker_Reduce f this (Core.upcast @IBindCtx a1) a2 a3 a4 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_Reduce :: FunPtr (IMoniker -> IBindCtx -> Word32 -> Ptr IMoniker -> Ptr IMoniker -> IO HRESULT) -> IMoniker -> IBindCtx -> Word32 -> Ptr IMoniker -> Ptr IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-composewith>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_ComposeWith :: (Core.Inherits IMoniker this, Core.Inherits IMoniker i1) => this -> i1 -> BOOL -> IO IMoniker
+iMoniker_ComposeWith (Core.upcast @IMoniker -> this) a1 a2 =
+  Core.vtableEntry this 11 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_ComposeWith f this (Core.upcast @IMoniker a1) a2 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_ComposeWith :: FunPtr (IMoniker -> IMoniker -> BOOL -> Ptr IMoniker -> IO HRESULT) -> IMoniker -> IMoniker -> BOOL -> Ptr IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-enum>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_Enum :: Core.Inherits IMoniker this => this -> BOOL -> IO IEnumMoniker
+iMoniker_Enum (Core.upcast @IMoniker -> this) a1 =
+  Core.vtableEntry this 12 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_Enum f this a1 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_Enum :: FunPtr (IMoniker -> BOOL -> Ptr IEnumMoniker -> IO HRESULT) -> IMoniker -> BOOL -> Ptr IEnumMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-isequal>
+iMoniker_IsEqual :: (Core.Inherits IMoniker this, Core.Inherits IMoniker i1) => this -> i1 -> IO HRESULT
+iMoniker_IsEqual (Core.upcast @IMoniker -> this) a1 =
+  Core.vtableEntry this 13 P.>>= \f ->
+  call'iMoniker_IsEqual f this (Core.upcast @IMoniker a1)
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_IsEqual :: FunPtr (IMoniker -> IMoniker -> IO HRESULT) -> IMoniker -> IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-hash>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_Hash :: Core.Inherits IMoniker this => this -> IO Word32
+iMoniker_Hash (Core.upcast @IMoniker -> this) =
+  Core.vtableEntry this 14 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_Hash f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_Hash :: FunPtr (IMoniker -> Ptr Word32 -> IO HRESULT) -> IMoniker -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-isrunning>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_IsRunning :: (Core.Inherits IMoniker this, Core.Inherits IBindCtx i1, Core.Inherits IMoniker i2, Core.Inherits IMoniker i3) => this -> i1 -> i2 -> i3 -> IO ()
+iMoniker_IsRunning (Core.upcast @IMoniker -> this) a1 a2 a3 =
+  Core.vtableEntry this 15 P.>>= \f ->
+  call'iMoniker_IsRunning f this (Core.upcast @IBindCtx a1) (Core.upcast @IMoniker a2) (Core.upcast @IMoniker a3) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_IsRunning :: FunPtr (IMoniker -> IBindCtx -> IMoniker -> IMoniker -> IO HRESULT) -> IMoniker -> IBindCtx -> IMoniker -> IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-gettimeoflastchange>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_GetTimeOfLastChange :: (Core.Inherits IMoniker this, Core.Inherits IBindCtx i1, Core.Inherits IMoniker i2) => this -> i1 -> i2 -> IO FILETIME
+iMoniker_GetTimeOfLastChange (Core.upcast @IMoniker -> this) a1 a2 =
+  Core.vtableEntry this 16 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_GetTimeOfLastChange f this (Core.upcast @IBindCtx a1) (Core.upcast @IMoniker a2) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_GetTimeOfLastChange :: FunPtr (IMoniker -> IBindCtx -> IMoniker -> Ptr FILETIME -> IO HRESULT) -> IMoniker -> IBindCtx -> IMoniker -> Ptr FILETIME -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-inverse>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_Inverse :: Core.Inherits IMoniker this => this -> IO IMoniker
+iMoniker_Inverse (Core.upcast @IMoniker -> this) =
+  Core.vtableEntry this 17 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_Inverse f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_Inverse :: FunPtr (IMoniker -> Ptr IMoniker -> IO HRESULT) -> IMoniker -> Ptr IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-commonprefixwith>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_CommonPrefixWith :: (Core.Inherits IMoniker this, Core.Inherits IMoniker i1) => this -> i1 -> IO IMoniker
+iMoniker_CommonPrefixWith (Core.upcast @IMoniker -> this) a1 =
+  Core.vtableEntry this 18 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_CommonPrefixWith f this (Core.upcast @IMoniker a1) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_CommonPrefixWith :: FunPtr (IMoniker -> IMoniker -> Ptr IMoniker -> IO HRESULT) -> IMoniker -> IMoniker -> Ptr IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-relativepathto>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_RelativePathTo :: (Core.Inherits IMoniker this, Core.Inherits IMoniker i1) => this -> i1 -> IO IMoniker
+iMoniker_RelativePathTo (Core.upcast @IMoniker -> this) a1 =
+  Core.vtableEntry this 19 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_RelativePathTo f this (Core.upcast @IMoniker a1) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_RelativePathTo :: FunPtr (IMoniker -> IMoniker -> Ptr IMoniker -> IO HRESULT) -> IMoniker -> IMoniker -> Ptr IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-getdisplayname>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_GetDisplayName :: (Core.Inherits IMoniker this, Core.Inherits IBindCtx i1, Core.Inherits IMoniker i2) => this -> i1 -> i2 -> IO PWSTR
+iMoniker_GetDisplayName (Core.upcast @IMoniker -> this) a1 a2 =
+  Core.vtableEntry this 20 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_GetDisplayName f this (Core.upcast @IBindCtx a1) (Core.upcast @IMoniker a2) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_GetDisplayName :: FunPtr (IMoniker -> IBindCtx -> IMoniker -> Ptr PWSTR -> IO HRESULT) -> IMoniker -> IBindCtx -> IMoniker -> Ptr PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-parsedisplayname>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_ParseDisplayName :: (Core.Inherits IMoniker this, Core.Inherits IBindCtx i1, Core.Inherits IMoniker i2) => this -> i1 -> i2 -> PWSTR -> Ptr Word32 -> Ptr IMoniker -> IO ()
+iMoniker_ParseDisplayName (Core.upcast @IMoniker -> this) a1 a2 a3 a4 a5 =
+  Core.vtableEntry this 21 P.>>= \f ->
+  call'iMoniker_ParseDisplayName f this (Core.upcast @IBindCtx a1) (Core.upcast @IMoniker a2) a3 a4 a5 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_ParseDisplayName :: FunPtr (IMoniker -> IBindCtx -> IMoniker -> PWSTR -> Ptr Word32 -> Ptr IMoniker -> IO HRESULT) -> IMoniker -> IBindCtx -> IMoniker -> PWSTR -> Ptr Word32 -> Ptr IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-imoniker-issystemmoniker>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iMoniker_IsSystemMoniker :: Core.Inherits IMoniker this => this -> IO Word32
+iMoniker_IsSystemMoniker (Core.upcast @IMoniker -> this) =
+  Core.vtableEntry this 22 P.>>= \f ->
+  M.alloca P.$ \o -> call'iMoniker_IsSystemMoniker f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iMoniker_IsSystemMoniker :: FunPtr (IMoniker -> Ptr Word32 -> IO HRESULT) -> IMoniker -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ipersist-getclassid>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iPersist_GetClassID :: Core.Inherits IPersist this => this -> IO GUID
+iPersist_GetClassID (Core.upcast @IPersist -> this) =
+  Core.vtableEntry this 3 P.>>= \f ->
+  M.alloca P.$ \o -> call'iPersist_GetClassID f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iPersist_GetClassID :: FunPtr (IPersist -> Ptr GUID -> IO HRESULT) -> IPersist -> Ptr GUID -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ipersiststream-isdirty>
+iPersistStream_IsDirty :: Core.Inherits IPersistStream this => this -> IO HRESULT
+iPersistStream_IsDirty (Core.upcast @IPersistStream -> this) =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iPersistStream_IsDirty f this
+
+foreign import ccall safe "dynamic"
+  call'iPersistStream_IsDirty :: FunPtr (IPersistStream -> IO HRESULT) -> IPersistStream -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ipersiststream-load>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iPersistStream_Load :: (Core.Inherits IPersistStream this, Core.Inherits IStream i1) => this -> i1 -> IO ()
+iPersistStream_Load (Core.upcast @IPersistStream -> this) a1 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iPersistStream_Load f this (Core.upcast @IStream a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iPersistStream_Load :: FunPtr (IPersistStream -> IStream -> IO HRESULT) -> IPersistStream -> IStream -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ipersiststream-save>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iPersistStream_Save :: (Core.Inherits IPersistStream this, Core.Inherits IStream i1) => this -> i1 -> BOOL -> IO ()
+iPersistStream_Save (Core.upcast @IPersistStream -> this) a1 a2 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  call'iPersistStream_Save f this (Core.upcast @IStream a1) a2 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iPersistStream_Save :: FunPtr (IPersistStream -> IStream -> BOOL -> IO HRESULT) -> IPersistStream -> IStream -> BOOL -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-ipersiststream-getsizemax>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iPersistStream_GetSizeMax :: Core.Inherits IPersistStream this => this -> IO Word64
+iPersistStream_GetSizeMax (Core.upcast @IPersistStream -> this) =
+  Core.vtableEntry this 7 P.>>= \f ->
+  M.alloca P.$ \o -> call'iPersistStream_GetSizeMax f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iPersistStream_GetSizeMax :: FunPtr (IPersistStream -> Ptr Word64 -> IO HRESULT) -> IPersistStream -> Ptr Word64 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-register>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_Register :: (Core.Inherits IRunningObjectTable this, Core.Inherits IUnknown i1, Core.Inherits IMoniker i2) => this -> ROT_FLAGS -> i1 -> i2 -> IO Word32
+iRunningObjectTable_Register (Core.upcast @IRunningObjectTable -> this) a1 a2 a3 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  M.alloca P.$ \o -> call'iRunningObjectTable_Register f this a1 (Core.upcast @IUnknown a2) (Core.upcast @IMoniker a3) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_Register :: FunPtr (IRunningObjectTable -> ROT_FLAGS -> IUnknown -> IMoniker -> Ptr Word32 -> IO HRESULT) -> IRunningObjectTable -> ROT_FLAGS -> IUnknown -> IMoniker -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-revoke>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_Revoke :: Core.Inherits IRunningObjectTable this => this -> Word32 -> IO ()
+iRunningObjectTable_Revoke (Core.upcast @IRunningObjectTable -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iRunningObjectTable_Revoke f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_Revoke :: FunPtr (IRunningObjectTable -> Word32 -> IO HRESULT) -> IRunningObjectTable -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-isrunning>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_IsRunning :: (Core.Inherits IRunningObjectTable this, Core.Inherits IMoniker i1) => this -> i1 -> IO ()
+iRunningObjectTable_IsRunning (Core.upcast @IRunningObjectTable -> this) a1 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iRunningObjectTable_IsRunning f this (Core.upcast @IMoniker a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_IsRunning :: FunPtr (IRunningObjectTable -> IMoniker -> IO HRESULT) -> IRunningObjectTable -> IMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-getobject>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_GetObject :: (Core.Inherits IRunningObjectTable this, Core.Inherits IMoniker i1) => this -> i1 -> IO IUnknown
+iRunningObjectTable_GetObject (Core.upcast @IRunningObjectTable -> this) a1 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iRunningObjectTable_GetObject f this (Core.upcast @IMoniker a1) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_GetObject :: FunPtr (IRunningObjectTable -> IMoniker -> Ptr IUnknown -> IO HRESULT) -> IRunningObjectTable -> IMoniker -> Ptr IUnknown -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-notechangetime>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_NoteChangeTime :: Core.Inherits IRunningObjectTable this => this -> Word32 -> Ptr FILETIME -> IO ()
+iRunningObjectTable_NoteChangeTime (Core.upcast @IRunningObjectTable -> this) a1 a2 =
+  Core.vtableEntry this 7 P.>>= \f ->
+  call'iRunningObjectTable_NoteChangeTime f this a1 a2 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_NoteChangeTime :: FunPtr (IRunningObjectTable -> Word32 -> Ptr FILETIME -> IO HRESULT) -> IRunningObjectTable -> Word32 -> Ptr FILETIME -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-gettimeoflastchange>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_GetTimeOfLastChange :: (Core.Inherits IRunningObjectTable this, Core.Inherits IMoniker i1) => this -> i1 -> IO FILETIME
+iRunningObjectTable_GetTimeOfLastChange (Core.upcast @IRunningObjectTable -> this) a1 =
+  Core.vtableEntry this 8 P.>>= \f ->
+  M.alloca P.$ \o -> call'iRunningObjectTable_GetTimeOfLastChange f this (Core.upcast @IMoniker a1) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_GetTimeOfLastChange :: FunPtr (IRunningObjectTable -> IMoniker -> Ptr FILETIME -> IO HRESULT) -> IRunningObjectTable -> IMoniker -> Ptr FILETIME -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-irunningobjecttable-enumrunning>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iRunningObjectTable_EnumRunning :: Core.Inherits IRunningObjectTable this => this -> IO IEnumMoniker
+iRunningObjectTable_EnumRunning (Core.upcast @IRunningObjectTable -> this) =
+  Core.vtableEntry this 9 P.>>= \f ->
+  M.alloca P.$ \o -> call'iRunningObjectTable_EnumRunning f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iRunningObjectTable_EnumRunning :: FunPtr (IRunningObjectTable -> Ptr IEnumMoniker -> IO HRESULT) -> IRunningObjectTable -> Ptr IEnumMoniker -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-isequentialstream-read>
+iSequentialStream_Read :: Core.Inherits ISequentialStream this => this -> Ptr () -> Word32 -> Ptr Word32 -> IO HRESULT
+iSequentialStream_Read (Core.upcast @ISequentialStream -> this) a1 a2 a3 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iSequentialStream_Read f this a1 a2 a3
+
+foreign import ccall safe "dynamic"
+  call'iSequentialStream_Read :: FunPtr (ISequentialStream -> Ptr () -> Word32 -> Ptr Word32 -> IO HRESULT) -> ISequentialStream -> Ptr () -> Word32 -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-isequentialstream-write>
+iSequentialStream_Write :: Core.Inherits ISequentialStream this => this -> Ptr () -> Word32 -> Ptr Word32 -> IO HRESULT
+iSequentialStream_Write (Core.upcast @ISequentialStream -> this) a1 a2 a3 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  call'iSequentialStream_Write f this a1 a2 a3
+
+foreign import ccall safe "dynamic"
+  call'iSequentialStream_Write :: FunPtr (ISequentialStream -> Ptr () -> Word32 -> Ptr Word32 -> IO HRESULT) -> ISequentialStream -> Ptr () -> Word32 -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-bindtohandler>
+--
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+iShellItem_BindToHandler :: (Core.Inherits IShellItem this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t
+iShellItem_BindToHandler (Core.upcast @IShellItem -> this) a1 a2 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  Core.query (\riid o -> call'iShellItem_BindToHandler f this (Core.upcast @IBindCtx a1) a2 riid o)
+
+foreign import ccall safe "dynamic"
+  call'iShellItem_BindToHandler :: FunPtr (IShellItem -> IBindCtx -> Ptr GUID -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> IShellItem -> IBindCtx -> Ptr GUID -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-getparent>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItem_GetParent :: Core.Inherits IShellItem this => this -> IO IShellItem
+iShellItem_GetParent (Core.upcast @IShellItem -> this) =
+  Core.vtableEntry this 4 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItem_GetParent f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItem_GetParent :: FunPtr (IShellItem -> Ptr IShellItem -> IO HRESULT) -> IShellItem -> Ptr IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-getdisplayname>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItem_GetDisplayName :: Core.Inherits IShellItem this => this -> SIGDN -> IO PWSTR
+iShellItem_GetDisplayName (Core.upcast @IShellItem -> this) a1 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItem_GetDisplayName f this a1 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItem_GetDisplayName :: FunPtr (IShellItem -> SIGDN -> Ptr PWSTR -> IO HRESULT) -> IShellItem -> SIGDN -> Ptr PWSTR -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-getattributes>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItem_GetAttributes :: Core.Inherits IShellItem this => this -> SFGAO_FLAGS -> IO SFGAO_FLAGS
+iShellItem_GetAttributes (Core.upcast @IShellItem -> this) a1 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItem_GetAttributes f this a1 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItem_GetAttributes :: FunPtr (IShellItem -> SFGAO_FLAGS -> Ptr SFGAO_FLAGS -> IO HRESULT) -> IShellItem -> SFGAO_FLAGS -> Ptr SFGAO_FLAGS -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-compare>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItem_Compare :: (Core.Inherits IShellItem this, Core.Inherits IShellItem i1) => this -> i1 -> Word32 -> IO Int32
+iShellItem_Compare (Core.upcast @IShellItem -> this) a1 a2 =
+  Core.vtableEntry this 7 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItem_Compare f this (Core.upcast @IShellItem a1) a2 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItem_Compare :: FunPtr (IShellItem -> IShellItem -> Word32 -> Ptr Int32 -> IO HRESULT) -> IShellItem -> IShellItem -> Word32 -> Ptr Int32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-bindtohandler>
+--
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_BindToHandler :: (Core.Inherits IShellItemArray this, Core.Interface t, Core.Inherits IBindCtx i1) => this -> i1 -> Ptr GUID -> IO t
+iShellItemArray_BindToHandler (Core.upcast @IShellItemArray -> this) a1 a2 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  Core.query (\riid o -> call'iShellItemArray_BindToHandler f this (Core.upcast @IBindCtx a1) a2 riid o)
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_BindToHandler :: FunPtr (IShellItemArray -> IBindCtx -> Ptr GUID -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> IShellItemArray -> IBindCtx -> Ptr GUID -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getpropertystore>
+--
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_GetPropertyStore :: (Core.Inherits IShellItemArray this, Core.Interface t) => this -> GETPROPERTYSTOREFLAGS -> IO t
+iShellItemArray_GetPropertyStore (Core.upcast @IShellItemArray -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  Core.query (\riid o -> call'iShellItemArray_GetPropertyStore f this a1 riid o)
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_GetPropertyStore :: FunPtr (IShellItemArray -> GETPROPERTYSTOREFLAGS -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> IShellItemArray -> GETPROPERTYSTOREFLAGS -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getpropertydescriptionlist>
+--
+-- Returns the interface @t@ (choose it with a type application such as @\@IStream@), which the caller releases. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_GetPropertyDescriptionList :: (Core.Inherits IShellItemArray this, Core.Interface t) => this -> Ptr PROPERTYKEY -> IO t
+iShellItemArray_GetPropertyDescriptionList (Core.upcast @IShellItemArray -> this) a1 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  Core.query (\riid o -> call'iShellItemArray_GetPropertyDescriptionList f this a1 riid o)
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_GetPropertyDescriptionList :: FunPtr (IShellItemArray -> Ptr PROPERTYKEY -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT) -> IShellItemArray -> Ptr PROPERTYKEY -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getattributes>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_GetAttributes :: Core.Inherits IShellItemArray this => this -> SIATTRIBFLAGS -> SFGAO_FLAGS -> IO SFGAO_FLAGS
+iShellItemArray_GetAttributes (Core.upcast @IShellItemArray -> this) a1 a2 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItemArray_GetAttributes f this a1 a2 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_GetAttributes :: FunPtr (IShellItemArray -> SIATTRIBFLAGS -> SFGAO_FLAGS -> Ptr SFGAO_FLAGS -> IO HRESULT) -> IShellItemArray -> SIATTRIBFLAGS -> SFGAO_FLAGS -> Ptr SFGAO_FLAGS -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getcount>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_GetCount :: Core.Inherits IShellItemArray this => this -> IO Word32
+iShellItemArray_GetCount (Core.upcast @IShellItemArray -> this) =
+  Core.vtableEntry this 7 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItemArray_GetCount f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_GetCount :: FunPtr (IShellItemArray -> Ptr Word32 -> IO HRESULT) -> IShellItemArray -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getitemat>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_GetItemAt :: Core.Inherits IShellItemArray this => this -> Word32 -> IO IShellItem
+iShellItemArray_GetItemAt (Core.upcast @IShellItemArray -> this) a1 =
+  Core.vtableEntry this 8 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItemArray_GetItemAt f this a1 o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_GetItemAt :: FunPtr (IShellItemArray -> Word32 -> Ptr IShellItem -> IO HRESULT) -> IShellItemArray -> Word32 -> Ptr IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-enumitems>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemArray_EnumItems :: Core.Inherits IShellItemArray this => this -> IO IEnumShellItems
+iShellItemArray_EnumItems (Core.upcast @IShellItemArray -> this) =
+  Core.vtableEntry this 9 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItemArray_EnumItems f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItemArray_EnumItems :: FunPtr (IShellItemArray -> Ptr IEnumShellItems -> IO HRESULT) -> IShellItemArray -> Ptr IEnumShellItems -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemfilter-includeitem>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iShellItemFilter_IncludeItem :: (Core.Inherits IShellItemFilter this, Core.Inherits IShellItem i1) => this -> i1 -> IO ()
+iShellItemFilter_IncludeItem (Core.upcast @IShellItemFilter -> this) a1 =
+  Core.vtableEntry this 3 P.>>= \f ->
+  call'iShellItemFilter_IncludeItem f this (Core.upcast @IShellItem a1) P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iShellItemFilter_IncludeItem :: FunPtr (IShellItemFilter -> IShellItem -> IO HRESULT) -> IShellItemFilter -> IShellItem -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemfilter-getenumflagsforitem>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iShellItemFilter_GetEnumFlagsForItem :: (Core.Inherits IShellItemFilter this, Core.Inherits IShellItem i1) => this -> i1 -> IO Word32
+iShellItemFilter_GetEnumFlagsForItem (Core.upcast @IShellItemFilter -> this) a1 =
+  Core.vtableEntry this 4 P.>>= \f ->
+  M.alloca P.$ \o -> call'iShellItemFilter_GetEnumFlagsForItem f this (Core.upcast @IShellItem a1) o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iShellItemFilter_GetEnumFlagsForItem :: FunPtr (IShellItemFilter -> IShellItem -> Ptr Word32 -> IO HRESULT) -> IShellItemFilter -> IShellItem -> Ptr Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-seek>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_Seek :: Core.Inherits IStream this => this -> Int64 -> STREAM_SEEK -> Ptr Word64 -> IO ()
+iStream_Seek (Core.upcast @IStream -> this) a1 a2 a3 =
+  Core.vtableEntry this 5 P.>>= \f ->
+  call'iStream_Seek f this a1 a2 a3 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_Seek :: FunPtr (IStream -> Int64 -> STREAM_SEEK -> Ptr Word64 -> IO HRESULT) -> IStream -> Int64 -> STREAM_SEEK -> Ptr Word64 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-setsize>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_SetSize :: Core.Inherits IStream this => this -> Word64 -> IO ()
+iStream_SetSize (Core.upcast @IStream -> this) a1 =
+  Core.vtableEntry this 6 P.>>= \f ->
+  call'iStream_SetSize f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_SetSize :: FunPtr (IStream -> Word64 -> IO HRESULT) -> IStream -> Word64 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-copyto>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_CopyTo :: (Core.Inherits IStream this, Core.Inherits IStream i1) => this -> i1 -> Word64 -> Ptr Word64 -> Ptr Word64 -> IO ()
+iStream_CopyTo (Core.upcast @IStream -> this) a1 a2 a3 a4 =
+  Core.vtableEntry this 7 P.>>= \f ->
+  call'iStream_CopyTo f this (Core.upcast @IStream a1) a2 a3 a4 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_CopyTo :: FunPtr (IStream -> IStream -> Word64 -> Ptr Word64 -> Ptr Word64 -> IO HRESULT) -> IStream -> IStream -> Word64 -> Ptr Word64 -> Ptr Word64 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-commit>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_Commit :: Core.Inherits IStream this => this -> Word32 -> IO ()
+iStream_Commit (Core.upcast @IStream -> this) a1 =
+  Core.vtableEntry this 8 P.>>= \f ->
+  call'iStream_Commit f this a1 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_Commit :: FunPtr (IStream -> Word32 -> IO HRESULT) -> IStream -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-revert>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_Revert :: Core.Inherits IStream this => this -> IO ()
+iStream_Revert (Core.upcast @IStream -> this) =
+  Core.vtableEntry this 9 P.>>= \f ->
+  call'iStream_Revert f this P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_Revert :: FunPtr (IStream -> IO HRESULT) -> IStream -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-lockregion>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_LockRegion :: Core.Inherits IStream this => this -> Word64 -> Word64 -> Word32 -> IO ()
+iStream_LockRegion (Core.upcast @IStream -> this) a1 a2 a3 =
+  Core.vtableEntry this 10 P.>>= \f ->
+  call'iStream_LockRegion f this a1 a2 a3 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_LockRegion :: FunPtr (IStream -> Word64 -> Word64 -> Word32 -> IO HRESULT) -> IStream -> Word64 -> Word64 -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-unlockregion>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_UnlockRegion :: Core.Inherits IStream this => this -> Word64 -> Word64 -> Word32 -> IO ()
+iStream_UnlockRegion (Core.upcast @IStream -> this) a1 a2 a3 =
+  Core.vtableEntry this 11 P.>>= \f ->
+  call'iStream_UnlockRegion f this a1 a2 a3 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_UnlockRegion :: FunPtr (IStream -> Word64 -> Word64 -> Word32 -> IO HRESULT) -> IStream -> Word64 -> Word64 -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-stat>
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+iStream_Stat :: Core.Inherits IStream this => this -> Ptr STATSTG -> Word32 -> IO ()
+iStream_Stat (Core.upcast @IStream -> this) a1 a2 =
+  Core.vtableEntry this 12 P.>>= \f ->
+  call'iStream_Stat f this a1 a2 P.>>= Core.check
+
+foreign import ccall safe "dynamic"
+  call'iStream_Stat :: FunPtr (IStream -> Ptr STATSTG -> Word32 -> IO HRESULT) -> IStream -> Ptr STATSTG -> Word32 -> IO HRESULT
+
+-- | <https://learn.microsoft.com/windows/win32/api/objidl/nf-objidl-istream-clone>
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+iStream_Clone :: Core.Inherits IStream this => this -> IO IStream
+iStream_Clone (Core.upcast @IStream -> this) =
+  Core.vtableEntry this 13 P.>>= \f ->
+  M.alloca P.$ \o -> call'iStream_Clone f this o P.>>= Core.check P.>> S.peek o
+
+foreign import ccall safe "dynamic"
+  call'iStream_Clone :: FunPtr (IStream -> Ptr IStream -> IO HRESULT) -> IStream -> Ptr IStream -> IO HRESULT
