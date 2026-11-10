@@ -47,6 +47,8 @@ Windows.Win32.Globalization.lstrlenA
 Windows.Win32.UI.Shell.SHGetKnownFolderPath
 Windows.Win32.System.Com.CoTaskMemFree
 
-# A function that reports failure through GetLastError
+# Functions that report failure through GetLastError: CloseHandle's wrapper
+# checks its BOOL, GetFileAttributesW returns a number to compare
+Windows.Win32.Foundation.CloseHandle
 Windows.Win32.Storage.FileSystem.GetFileAttributesW
 Windows.Win32.Storage.FileSystem.INVALID_FILE_ATTRIBUTES

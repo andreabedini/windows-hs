@@ -80,6 +80,12 @@ cabal run -v0 windows-bindgen -- -o src/Windows/Win32.hs \
 The generated module depends on `windows-core`. See `samples/hello` for a
 complete example, and `windows-bindgen --help` for the other options.
 
+As in windows-rs, the generated functions check for errors where the
+metadata says how: a function returning `HRESULT`, or returning `BOOL` or a
+handle and setting the last error, throws `Windows.Core.WindowsError` when
+it fails, and a trailing output parameter is returned instead of passed. With
+`--sys`, every function keeps its C signature instead, like windows-sys.
+
 ### Naming what to generate
 
 Each name is a win32metadata namespace followed by the item's name:

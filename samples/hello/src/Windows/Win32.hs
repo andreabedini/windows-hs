@@ -169,6 +169,7 @@ module Windows.Win32
   , pattern SRWLOCK_INIT
   , pattern S_OK
   , pattern WC_BUTTONW
+  , closeHandle
   , coCreateInstance
   , coTaskMemFree
   , getFileAttributesW
@@ -188,6 +189,7 @@ import Data.Bits qualified as B
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Word (Word16, Word32, Word64, Word8)
 import Foreign.C.Types (CBool (..))
+import Foreign.Marshal.Alloc qualified as M
 import Foreign.Ptr (FunPtr, IntPtr (..), Ptr, WordPtr (..))
 import Foreign.Ptr qualified as F
 import Foreign.Storable qualified as S
@@ -830,10 +832,26 @@ str'WC_BUTTONW :: PWSTR
 str'WC_BUTTONW = PWSTR (Core.wideLiteral "Button")
 {-# NOINLINE str'WC_BUTTONW #-}
 
+-- | <https://learn.microsoft.com/windows/win32/api/handleapi/nf-handleapi-closehandle>
+--
+-- Throws 'Core.WindowsError' from @GetLastError@ if the function fails.
+closeHandle :: HANDLE -> IO ()
+closeHandle a1 =
+  call'closeHandle proc'closeHandle a1 P.>>= \(BOOL r) -> if r P.== 0 then Core.throwLastError else P.pure ()
+
+proc'closeHandle :: FunPtr (HANDLE -> IO BOOL)
+proc'closeHandle = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "CloseHandle")
+{-# NOINLINE proc'closeHandle #-}
+
+foreign import ccall safe "dynamic"
+  call'closeHandle :: FunPtr (HANDLE -> IO BOOL) -> HANDLE -> IO BOOL
+
 -- | <https://learn.microsoft.com/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance>
-coCreateInstance :: Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT
+--
+-- Throws 'Core.WindowsError' if the result is a failure.
+coCreateInstance :: Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO ()
 coCreateInstance a1 a2 a3 a4 a5 =
-  call'coCreateInstance proc'coCreateInstance a1 a2 a3 a4 a5
+  call'coCreateInstance proc'coCreateInstance a1 a2 a3 a4 a5 P.>>= Core.check
 
 proc'coCreateInstance :: FunPtr (Ptr GUID -> Ptr IUnknown -> CLSCTX -> Ptr GUID -> Ptr (Ptr ()) -> IO HRESULT)
 proc'coCreateInstance = U.unsafePerformIO (Core.resolveProc "OLE32.dll" "CoCreateInstance")
@@ -891,9 +909,11 @@ foreign import ccall safe "dynamic"
   call'getTickCount :: FunPtr (IO Word32) -> IO Word32
 
 -- | <https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getversionexw>
-getVersionExW :: Ptr OSVERSIONINFOW -> IO BOOL
+--
+-- Throws 'Core.WindowsError' from @GetLastError@ if the function fails.
+getVersionExW :: Ptr OSVERSIONINFOW -> IO ()
 getVersionExW a1 =
-  call'getVersionExW proc'getVersionExW a1
+  call'getVersionExW proc'getVersionExW a1 P.>>= \(BOOL r) -> if r P.== 0 then Core.throwLastError else P.pure ()
 
 proc'getVersionExW :: FunPtr (Ptr OSVERSIONINFOW -> IO BOOL)
 proc'getVersionExW = U.unsafePerformIO (Core.resolveProc "KERNEL32.dll" "GetVersionExW")
@@ -903,9 +923,11 @@ foreign import ccall safe "dynamic"
   call'getVersionExW :: FunPtr (Ptr OSVERSIONINFOW -> IO BOOL) -> Ptr OSVERSIONINFOW -> IO BOOL
 
 -- | <https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-loadcursorw>
+--
+-- Throws 'Core.WindowsError' from @GetLastError@ if the handle is invalid.
 loadCursorW :: HINSTANCE -> PWSTR -> IO HCURSOR
 loadCursorW a1 a2 =
-  call'loadCursorW proc'loadCursorW a1 a2
+  call'loadCursorW proc'loadCursorW a1 a2 P.>>= \h@(HCURSOR v) -> if P.elem (F.ptrToIntPtr v) [P.fromInteger (-1), P.fromInteger (0)] then Core.throwLastError else P.pure h
 
 proc'loadCursorW :: FunPtr (HINSTANCE -> PWSTR -> IO HCURSOR)
 proc'loadCursorW = U.unsafePerformIO (Core.resolveProc "USER32.dll" "LoadCursorW")
@@ -939,9 +961,11 @@ foreign import ccall safe "dynamic"
   call'registerClassW :: FunPtr (Ptr WNDCLASSW -> IO Word16) -> Ptr WNDCLASSW -> IO Word16
 
 -- | <https://learn.microsoft.com/windows/win32/api/shlobj_core/nf-shlobj_core-shgetknownfolderpath>
-shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT
-shGetKnownFolderPath a1 a2 a3 a4 =
-  call'shGetKnownFolderPath proc'shGetKnownFolderPath a1 a2 a3 a4
+--
+-- Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure.
+shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> IO PWSTR
+shGetKnownFolderPath a1 a2 a3 =
+  M.alloca P.$ \o -> call'shGetKnownFolderPath proc'shGetKnownFolderPath a1 a2 a3 o P.>>= Core.check P.>> S.peek o
 
 proc'shGetKnownFolderPath :: FunPtr (Ptr GUID -> Word32 -> HANDLE -> Ptr PWSTR -> IO HRESULT)
 proc'shGetKnownFolderPath = U.unsafePerformIO (Core.resolveProc "SHELL32.dll" "SHGetKnownFolderPath")

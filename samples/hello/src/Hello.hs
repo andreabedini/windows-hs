@@ -4,13 +4,14 @@
 -- | Calls a few Windows functions through the generated bindings.
 module Hello (hello) where
 
+import Control.Exception (try)
 import Control.Monad (when)
 import Foreign.C.String (peekCWString, withCWString)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Utils (with)
 import Foreign.Ptr (castPtr, nullPtr)
 import Foreign.Storable (peek)
-import Windows.Core (lastError)
+import Windows.Core (WindowsError, lastError)
 import Windows.Win32
 
 -- | Print some system information. With 'True', also show a message box.
@@ -50,16 +51,11 @@ constants = do
   HCURSOR cursor <- loadCursorW (HINSTANCE nullPtr) IDC_ARROW
   putStrLn ("Arrow cursor loaded: " ++ show (cursor /= nullPtr))
 
-  -- A GUID constant, passed by reference.
-  documents <- alloca $ \out -> with FOLDERID_Documents $ \folder -> do
-    hr <- shGetKnownFolderPath folder 0 (HANDLE nullPtr) out
-    if hr /= S_OK
-      then pure ("failed with " ++ show hr)
-      else do
-        PWSTR path <- peek out
-        s <- peekCWString (castPtr path)
-        coTaskMemFree (castPtr path)
-        pure s
+  -- A GUID constant, passed by reference. The wrapper returns the path,
+  -- the function's last parameter, and throws if the HRESULT is a failure.
+  PWSTR path <- with FOLDERID_Documents $ \folder -> shGetKnownFolderPath folder 0 (HANDLE nullPtr)
+  documents <- peekCWString (castPtr path)
+  coTaskMemFree (castPtr path)
   putStrLn ("Documents folder: " ++ documents)
 
   -- Constants are patterns too.
@@ -68,9 +64,15 @@ constants = do
         _ -> "another key"
   putStrLn ("HKEY_LOCAL_MACHINE matches itself: " ++ describe HKEY_LOCAL_MACHINE)
 
--- | Read the error a failed call left in @GetLastError@.
+-- | Errors reported through @GetLastError@.
 errors :: IO ()
 errors = do
+  -- CloseHandle returns BOOL and sets the last error, so its wrapper throws
+  -- when it fails.
+  closed <- try (closeHandle (HANDLE nullPtr))
+  putStrLn ("CloseHandle of a null handle: " ++ either (\e -> show (e :: WindowsError)) (const "closed") closed)
+
+  -- GetFileAttributesW returns a number, which the caller checks.
   attributes <- withCWString "C:\\no\\such\\file" (getFileAttributesW . PWSTR . castPtr)
   if attributes == INVALID_FILE_ATTRIBUTES
     then lastError >>= \e -> putStrLn ("GetFileAttributesW failed: " ++ show e)

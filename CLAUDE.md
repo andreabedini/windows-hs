@@ -78,6 +78,14 @@ Update this section when a package is added or its role changes.
 - Functions: `proc'name` holds the resolved pointer (a NOINLINE CAF),
   `call'name` is the `dynamic` import, `name` is the exported wrapper. Calls
   are `safe`.
+- Wrappers follow windows-rs 0.58, the last release generated from
+  win32metadata (`functionShape` in `Emit`): an `HRESULT` is checked; a
+  `BOOL` or a handle from a function marked `SetLastError` throws
+  `lastError` on failure; a trailing out-only parameter of at most 16 bytes
+  is returned. `CanReturnMultipleSuccessValues` functions and everything
+  else keep their C result. `--sys` (`cfgSys`) keeps every C signature, like
+  windows-sys. Current windows-rs reads its own metadata, so check rules
+  against 0.58 (`crates/libs/bindgen/src/metadata.rs`, `rust/functions.rs`).
 - Structs passed or returned by value follow the x64 rule: 1, 2, 4 or 8 bytes
   as an integer, otherwise by pointer (`Windows.Core.Marshal`).
 - Constants are pattern synonyms of every kind windows-sys has: numbers,

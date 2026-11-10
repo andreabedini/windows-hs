@@ -42,6 +42,10 @@ data Config = Config
   { cfgModuleName :: Text
   , cfgHeader :: [Text]
   -- ^ Lines for the module's leading comment, such as how it was generated.
+  , cfgSys :: Bool
+  -- ^ Emit every function with its C signature, as windows-sys does,
+  -- instead of checking errors and returning out parameters as windows-rs
+  -- does.
   }
 
 data Output = Output
@@ -124,7 +128,7 @@ generate cfg sel =
     functionNames = dedupe (Set.fromList delegateMks) (map (valueName . methodName) functionList)
     (fnWarnings, fnDecls) =
       partitionEithers
-        [ either (Left . warn (methodName m)) Right (emitFunction ctx n m)
+        [ either (Left . warn (methodName m)) Right (emitFunction (cfgSys cfg) ctx n m)
         | (m, n) <- zip functionList functionNames
         ]
 
@@ -418,9 +422,6 @@ slot ctx ty = do
         4 -> Slot hs "Word32" AsWord
         8 -> Slot hs "Word64" AsWord
         _ -> Slot hs ("Ptr " <> atom hs) ByRef
-  where
-    strip (TModified _ _ t) = strip t
-    strip t = t
 
 -- | The FFI type of a function pointer with this signature. Structs passed
 -- by value appear as the integers or pointers the ABI uses.
@@ -443,32 +444,50 @@ checkSig sig = do
 ------------------------------------------------------------------------------
 -- Functions
 
-emitFunction :: Ctx -> Text -> MethodDef -> Either String Decl
-emitFunction ctx name m = do
+emitFunction :: Bool -> Ctx -> Text -> MethodDef -> Either String Decl
+emitFunction sys ctx name m = do
   im <- maybe (Left "no DllImport") Right (methodImplMap m)
   let sig = methodSignature m
   checkSig sig
   params <- mapM (slot ctx) (sigParams sig)
   ret <- slot ctx (sigReturnType sig)
   ffiType <- ffiFunctionType ctx sig
+  shape <- if sys then Right Raw else functionShape ctx m im sig
   let procName = "proc'" <> name
       callName = "call'" <> name
       args = ["a" <> tshow i | i <- [1 .. length params]]
+      -- A returned out parameter is passed a buffer, not an argument.
+      (hsArgs, outArg) = case shape of
+        ReturnOut {} -> (init args, ["o"])
+        _ -> (args, [])
       argIn a s = if slotConv s == Plain then a else a <> "'"
-      callArgs = ["r" | slotConv ret == ByRef] ++ zipWith argIn args params
+      callArgs = ["r" | slotConv ret == ByRef] ++ zipWith argIn (hsArgs ++ outArg) params
       call = T.unwords (callName : procName : callArgs)
       result = case slotConv ret of
         Plain -> call
         AsWord -> call <> " P.>>= Core.wordToStruct"
         ByRef -> "Core.returnStruct (\\r -> " <> call <> ")"
+      checked = case shape of
+        Raw -> result
+        CheckHResult -> result <> " P.>>= Core.check"
+        CheckBool con -> result <> " P.>>= \\(" <> con <> " r) -> if r P.== 0 then Core.throwLastError else P.pure ()"
+        CheckHandle con invalid -> result <> " P.>>= \\h@(" <> con <> " v) -> if " <> invalid "v" <> " then Core.throwLastError else P.pure h"
+        ReturnOut hr _ ->
+          "M.alloca P.$ \\o -> " <> result <> (if hr then " P.>>= Core.check" else "") <> " P.>> S.peek o"
       wrappers =
         [ case slotConv s of
             AsWord -> "Core.structToWord " <> a <> " P.>>= \\" <> a <> "' ->"
             _ -> "Core.withStructCopy " <> a <> " P.$ \\" <> a <> "' ->"
-        | (a, s) <- zip args params
+        | (a, s) <- zip hsArgs params
         , slotConv s /= Plain
         ]
-      hsSig = T.intercalate " -> " (map slotHs params ++ ["IO " <> atom (slotHs ret)])
+      hsResult = case shape of
+        Raw -> slotHs ret
+        CheckHResult -> "()"
+        CheckBool _ -> "()"
+        CheckHandle {} -> slotHs ret
+        ReturnOut _ t -> t
+      hsSig = T.intercalate " -> " (map slotHs (take (length hsArgs) params) ++ ["IO " <> atom hsResult])
       dll = moduleRefName (implMapScope im)
       entry = implMapImportName im
   unless (T.all (\c -> c /= '"' && c /= '\\') (dll <> entry)) $ Left "unexpected characters in DLL or entry point name"
@@ -477,11 +496,11 @@ emitFunction ctx name m = do
       { declExports = [name]
       , declBody =
           T.unlines $
-            docComment m
+            commentLines (docComment m ++ shapeComment shape)
               ++ [ name <> " :: " <> hsSig
-                 , T.unwords (name : args) <> " ="
+                 , T.unwords (name : hsArgs) <> " ="
                  ]
-              ++ map ("  " <>) (wrappers ++ [result])
+              ++ map ("  " <>) (wrappers ++ [checked])
               ++ [ ""
                  , procName <> " :: FunPtr (" <> ffiType <> ")"
                  , procName <> " = U.unsafePerformIO (Core.resolveProc \"" <> dll <> "\" \"" <> entry <> "\")"
@@ -491,6 +510,149 @@ emitFunction ctx name m = do
                  , "  " <> callName <> " :: FunPtr (" <> ffiType <> ") -> " <> ffiType
                  ]
       }
+
+-- | What a function's wrapper does with its result. The rules are those of
+-- windows-rs 0.58, the last release generated from win32metadata
+-- (@SignatureKind@ and @handle_last_error@ in its @windows-bindgen@):
+--
+-- * @HRESULT@: checked with 'Windows.Core.check';
+-- * @BOOL@ from a function that sets the last error: @FALSE@ throws
+--   'Windows.Core.lastError';
+-- * a handle from a function that sets the last error: an invalid handle
+--   (an @InvalidHandleValue@, or null when the type names none) throws;
+-- * a last parameter that is only an output (see 'isRetval'), for
+--   functions returning @HRESULT@ or nothing: allocated by the wrapper and
+--   returned.
+--
+-- Functions marked @CanReturnMultipleSuccessValues@ keep their result, as
+-- do all others.
+data Shape
+  = Raw
+  | CheckHResult
+  | -- | The constructor of @BOOL@.
+    CheckBool Text
+  | -- | The handle's constructor, and the test for an invalid value of its
+    -- field.
+    CheckHandle Text (Text -> Text)
+  | -- | Whether the result is an @HRESULT@ to check, and the type of the
+    -- returned out parameter.
+    ReturnOut Bool Text
+
+-- | Join a documentation link and a note on the wrapper into one Haddock
+-- comment.
+commentLines :: [Text] -> [Text]
+commentLines = \case
+  [] -> []
+  [l] -> [l]
+  l : ls -> l : "--" : map (\x -> maybe x ("-- " <>) (T.stripPrefix "-- | " x)) ls
+
+-- | What the wrapper adds to the C function, for its Haddock comment.
+shapeComment :: Shape -> [Text]
+shapeComment = \case
+  Raw -> []
+  CheckHResult -> ["-- | Throws 'Core.WindowsError' if the result is a failure."]
+  CheckBool _ -> ["-- | Throws 'Core.WindowsError' from @GetLastError@ if the function fails."]
+  CheckHandle {} -> ["-- | Throws 'Core.WindowsError' from @GetLastError@ if the handle is invalid."]
+  ReturnOut True _ -> ["-- | Returns the last parameter. Throws 'Core.WindowsError' if the result is a failure."]
+  ReturnOut False _ -> ["-- | Returns the last parameter."]
+
+functionShape :: Ctx -> MethodDef -> ImplMap -> MethodSig -> Either String Shape
+functionShape ctx m im sig
+  | hasAttribute "CanReturnMultipleSuccessValuesAttribute" m = Right Raw
+  | otherwise = case strip (sigReturnType sig) of
+      TVoid | retval -> ReturnOut False <$> outType
+      TValueType r
+        | Right (TargetDef d) <- resolveTarget r -> case () of
+            _
+              | coreType d == Just "HRESULT" -> if retval then ReturnOut True <$> outType else Right CheckHResult
+              | (typeDefNamespace d, typeDefName d) == ("Windows.Win32.Foundation", "BOOL")
+              , lastError ->
+                  CheckBool <$> typeName ctx d
+              | classify d == KNativeTypedef
+              , lastError
+              , methodName m /= "LocalFree"
+              , [f] <- instanceFields d
+              , Just invalid <- invalidTest (strip (fieldType f)) (invalidValues d) ->
+                  (`CheckHandle` invalid) <$> typeName ctx d
+              | otherwise -> Right Raw
+      _ -> Right Raw
+  where
+    lastError = hasFlag pinvokeSupportsLastError (implMapFlags im)
+    rows = Map.fromList [(paramSequence p, p) | p <- methodParams m]
+    n = length (sigParams sig)
+    lastType = strip (last (sigParams sig))
+    -- windows-rs 0.58 @is_retval@: win32metadata rarely uses @RetVal@, so
+    -- a last parameter that is only written, is not optional or an array,
+    -- and points to at most 16 bytes that are not a callback counts, when
+    -- no other parameter is an output.
+    retval =
+      n > 0
+        && case Map.lookup (fromIntegral n) rows of
+          Just p | hasAttribute "RetValAttribute" p -> True
+          Just p ->
+            let fl = paramFlags p
+             in hasFlag paramOut fl
+                  && not (hasFlag paramIn fl)
+                  && not (hasFlag paramOptional fl)
+                  && not (hasAttribute "NativeArrayInfoAttribute" p)
+                  && not (hasAttribute "MemorySizeAttribute" p)
+                  && smallPointee
+                  && and
+                    [ not (hasFlag paramOut (paramFlags q))
+                    | (i, q) <- Map.toList rows
+                    , i > 0
+                    , fromIntegral i < n
+                    ]
+          Nothing -> False
+    smallPointee = case lastType of
+      TPtr t
+        | not (isVoid t)
+        , not (isDelegate t)
+        , Right (Layout size _) <- typeLayout t ->
+            size <= 16
+      _ -> False
+    outType = case lastType of
+      TPtr t -> hsType ctx t
+      t -> Left ("return parameter of type " ++ T.unpack (renderType t))
+    isVoid = \case
+      TVoid -> True
+      TPtr t -> isVoid t
+      TModified _ _ t -> isVoid t
+      _ -> False
+    isDelegate = \case
+      TClass r | Right (TargetDef d) <- resolveTarget r -> classify d == KDelegate
+      TModified _ _ t -> isDelegate t
+      _ -> False
+    invalidValues d =
+      [ v
+      | Attribute {attrName = "InvalidHandleValueAttribute", attrArgs = [AttrValue x]} <- attributes d
+      , Just v <- [integral x]
+      ]
+    invalidTest field values = case field of
+      TPtr _
+        | null values -> Just (\v -> v <> " P.== F.nullPtr")
+        | otherwise -> Just (\v -> "P.elem (F.ptrToIntPtr " <> v <> ") " <> list values)
+      _
+        | null values -> Nothing
+        | isIntegral field -> Just (\v -> "P.elem " <> v <> " " <> list values)
+        | otherwise -> Nothing
+    list vs = "[" <> T.intercalate ", " ["P.fromInteger (" <> tshow v <> ")" | v <- vs] <> "]"
+    isIntegral = (`elem` [TInt8, TUInt8, TInt16, TUInt16, TInt32, TUInt32, TInt64, TUInt64, TIntPtr, TUIntPtr])
+    integral = \case
+      VInt8 x -> Just (toInteger x)
+      VUInt8 x -> Just (toInteger x)
+      VInt16 x -> Just (toInteger x)
+      VUInt16 x -> Just (toInteger x)
+      VInt32 x -> Just (toInteger x)
+      VUInt32 x -> Just (toInteger x)
+      VInt64 x -> Just (toInteger x)
+      VUInt64 x -> Just (toInteger x)
+      _ -> Nothing
+
+strip :: Type -> Type
+strip = \case
+  TModified _ _ t -> strip t
+  t -> t
 
 ------------------------------------------------------------------------------
 -- Constants
@@ -797,6 +959,7 @@ render cfg decls =
          , "import Data.Int (Int16, Int32, Int64, Int8)"
          , "import Data.Word (Word16, Word32, Word64, Word8)"
          , "import Foreign.C.Types (CBool (..))"
+         , "import Foreign.Marshal.Alloc qualified as M"
          , "import Foreign.Ptr (FunPtr, IntPtr (..), Ptr, WordPtr (..))"
          , "import Foreign.Ptr qualified as F"
          , "import Foreign.Storable qualified as S"

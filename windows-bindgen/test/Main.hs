@@ -5,8 +5,10 @@ module Main (main) where
 
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (when)
+import Data.Char (isAsciiLower)
 import Data.IORef
 import Data.Maybe (fromMaybe)
+import Data.Text qualified as Text
 import Data.Text.IO qualified as T
 import System.Directory (findExecutable, getTemporaryDirectory)
 import System.Environment (lookupEnv)
@@ -109,6 +111,42 @@ main = do
           T.writeFile file (cLayoutChecks out)
           (code, _, err) <- readProcessWithExitCode gcc ["-std=c11", "-fsyntax-only", file] ""
           pure (if code == ExitSuccess then [] else [err])
+
+  -- The rules of windows-rs 0.58, the last release generated from
+  -- win32metadata.
+  test "function wrappers check errors as windows-rs does" $ do
+    let fns =
+          [ "Windows.Win32.Foundation.CloseHandle" -- BOOL, sets the last error
+          , "Windows.Win32.Storage.FileSystem.CreateFileW" -- HANDLE, sets the last error
+          , "Windows.Win32.UI.Shell.SHGetKnownFolderPath" -- HRESULT and an out PWSTR
+          , "Windows.Win32.System.Com.CoResumeClassObjects" -- HRESULT
+          , "Windows.Win32.System.Com.CoCreateGuid" -- HRESULT and an out GUID
+          , "Windows.Win32.System.Com.CoInitializeEx" -- HRESULT, but S_FALSE is a success too: kept
+          , "Windows.Win32.System.SystemInformation.GetSystemTimeAsFileTime" -- void and an out FILETIME
+          , "Windows.Win32.System.Registry.RegCloseKey" -- WIN32_ERROR, kept
+          , "Windows.Win32.Storage.FileSystem.GetFileAttributesW" -- a number, kept
+          , "Windows.Win32.Foundation.LocalFree" -- a handle, but excluded
+          ]
+        signatures cfg = case bindgen cfg db fns of
+          Left es -> Left es
+          Right out -> Right [l | l <- Text.lines (outModule out), Just (c, _) <- [Text.uncons l], isAsciiLower c, not ("pattern " `Text.isPrefixOf` l), " :: " `Text.isInfixOf` l, not ("'" `Text.isInfixOf` l)]
+    pure $
+      signatures defaultConfig
+        `shouldBe` Right
+          [ "closeHandle :: HANDLE -> IO ()"
+          , "coCreateGuid :: IO GUID"
+          , "coInitializeEx :: Ptr () -> Word32 -> IO HRESULT"
+          , "coResumeClassObjects :: IO ()"
+          , "createFileW :: PWSTR -> Word32 -> FILE_SHARE_MODE -> Ptr SECURITY_ATTRIBUTES -> FILE_CREATION_DISPOSITION -> FILE_FLAGS_AND_ATTRIBUTES -> HANDLE -> IO HANDLE"
+          , "getFileAttributesW :: PWSTR -> IO Word32"
+          , "getSystemTimeAsFileTime :: IO FILETIME"
+          , "localFree :: HLOCAL -> IO HLOCAL"
+          , "regCloseKey :: HKEY -> IO WIN32_ERROR"
+          , "shGetKnownFolderPath :: Ptr GUID -> Word32 -> HANDLE -> IO PWSTR"
+          ]
+        ++ ( (filter (`elem` ["closeHandle :: HANDLE -> IO BOOL", "getSystemTimeAsFileTime :: Ptr FILETIME -> IO ()"]) <$> signatures defaultConfig {cfgSys = True})
+               `shouldBe` Right ["closeHandle :: HANDLE -> IO BOOL", "getSystemTimeAsFileTime :: Ptr FILETIME -> IO ()"]
+           )
 
   -- Compiling this output takes about a minute; scripts/check-win32-surface.sh
   -- does that and checks its layouts.
